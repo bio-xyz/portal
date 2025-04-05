@@ -17,6 +17,7 @@ import AgentCreatorRoute from './routes/createAgent';
 import Home from './routes/home';
 import Settings from './routes/settings';
 import EnvSettings from './components/env-settings';
+import { WelcomeFormProvider } from './lib/welcome-form-context';
 
 // Create a query client with optimized settings
 const queryClient = new QueryClient({
@@ -70,33 +71,35 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div
-        className="dark antialiased"
-        style={{
-          colorScheme: 'dark',
-        }}
-      >
-        <BrowserRouter>
-          <TooltipProvider delayDuration={0}>
-            <SidebarProvider>
-              <AppSidebar />
-              <SidebarInset>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="chat/:agentId" element={<Chat />} />
-                  <Route path="settings/:agentId" element={<Settings />} />
-                  <Route path="agents/new" element={<AgentCreatorRoute />} />
-                  <Route path="/create" element={<AgentCreator />} />
-                  <Route path="/logs" element={<LogViewer />} />
-                  <Route path="room/:serverId" element={<Room />} />
-                  <Route path="settings/" element={<EnvSettings />} />
-                </Routes>
-              </SidebarInset>
-            </SidebarProvider>
-            <Toaster />
-          </TooltipProvider>
-        </BrowserRouter>
-      </div>
+      <WelcomeFormProvider>
+        <div
+          className="dark antialiased"
+          style={{
+            colorScheme: 'dark',
+          }}
+        >
+          <BrowserRouter>
+            <TooltipProvider delayDuration={0}>
+              <SidebarProvider>
+                <AppSidebar />
+                <SidebarInset>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="chat/:agentId" element={<Chat />} />
+                    <Route path="settings/:agentId" element={<Settings />} />
+                    <Route path="agents/new" element={<AgentCreatorRoute />} />
+                    <Route path="/create" element={<AgentCreator />} />
+                    <Route path="/logs" element={<LogViewer />} />
+                    <Route path="room/:serverId" element={<Room />} />
+                    <Route path="settings/" element={<EnvSettings />} />
+                  </Routes>
+                </SidebarInset>
+              </SidebarProvider>
+              <Toaster />
+            </TooltipProvider>
+          </BrowserRouter>
+        </div>
+      </WelcomeFormProvider>
     </QueryClientProvider>
   );
 }

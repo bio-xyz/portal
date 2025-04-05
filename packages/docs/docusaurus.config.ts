@@ -11,7 +11,7 @@ const config = {
   url: 'https://eliza.how',
   baseUrl: '/',
   organizationName: 'elizaos',
-  projectName: 'eliza',
+  projectname: 'CoreAgent',
   deploymentBranch: 'gh-pages',
   trailingSlash: false,
   onBrokenLinks: 'ignore',

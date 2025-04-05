@@ -508,7 +508,7 @@ export default function Page({ serverId }: { serverId: UUID }) {
                                     getAvatar(message.agentId)) ||
                                   (typeof message.senderId === 'string' &&
                                     getAvatar(message.senderId)) ||
-                                  '/elizaos-icon.png'
+                                  '/bioicon.png'
                             }
                           />
                         </Avatar>

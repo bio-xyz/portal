@@ -44,8 +44,8 @@ export class Configuration implements Omit<ConfigurationData, 'rootDirectory'> {
 
   public excludedDirectories: string[] = [];
   public repository: Repository = {
-    owner: 'elizaOS',
-    name: 'eliza',
+    owner: 'Bio Protocol',
+    name: 'CoreAgent',
     pullNumber: undefined,
   };
   public commitMessage = 'Generated JSDoc comments';

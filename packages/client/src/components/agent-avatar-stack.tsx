@@ -45,7 +45,7 @@ export default function AgentAvatarStack({
   const avatarOffset = Math.floor(baseSize * (overlapFactor / visibleCount));
 
   const getAvatarContent = (agentId: UUID, index: number) => {
-    const avatarSrc = agentAvatars[agentId] || '/elizaos-icon.png';
+    const avatarSrc = agentAvatars[agentId] || '/bioicon.png';
     return agentAvatars[agentId] ? (
       <AvatarImage src={avatarSrc} alt="Agent avatar" />
     ) : (

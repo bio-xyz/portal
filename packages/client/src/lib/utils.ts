@@ -19,6 +19,10 @@ dayjs.extend(localizedFormat);
 export const moment = dayjs;
 
 export const formatAgentName = (name: string) => {
+  // Check if this is the Eliza agent (case insensitive)
+  if (name.toLowerCase().includes('eliza')) {
+    return 'C';
+  }
   return name.substring(0, 2);
 };
 

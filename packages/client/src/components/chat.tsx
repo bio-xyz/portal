@@ -29,7 +29,6 @@ import { useAutoScroll } from './ui/chat/hooks/useAutoScroll';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 import { CHAT_SOURCE } from '@/constants';
-import { Evt } from 'evt';
 
 type ExtraContentFields = {
   name: string;
@@ -229,7 +228,7 @@ export default function Page({
             return old;
           }
 
-          animatedMessageIdRef.current = newMessage.id;
+          animatedMessageIdRef.current = typeof newMessage.id === 'string' ? newMessage.id : null;
 
           return [...old, newMessage];
         }
@@ -377,7 +376,7 @@ export default function Page({
         <div className="flex items-center gap-3">
           <Avatar className="size-10 border rounded-full">
             <AvatarImage
-              src={agentData?.settings?.avatar ? agentData?.settings?.avatar : '/elizaos-icon.png'}
+              src={agentData?.settings?.avatar ? agentData?.settings?.avatar : '/bioicon.png'}
             />
           </Avatar>
           <div className="flex flex-col">
@@ -442,12 +441,12 @@ export default function Page({
                   key={`${message.id as string}-${message.createdAt}`}
                   className={cn(
                     'flex flex-col gap-1 p-1',
-                    isUser ? 'justify-end' : 'justify-start'
+                    isUser ? 'justify-start' : 'justify-start'
                   )}
                 >
                   <ChatBubble
                     variant={isUser ? 'sent' : 'received'}
-                    className={`flex flex-row items-end gap-2 ${isUser ? 'flex-row-reverse' : ''}`}
+                    className={`flex flex-row items-end gap-2`}
                   >
                     {message.text && !isUser && (
                       <Avatar className="size-8 border rounded-full select-none mb-2">
@@ -457,7 +456,7 @@ export default function Page({
                               ? '/user-icon.png'
                               : agentData?.settings?.avatar
                                 ? agentData?.settings?.avatar
-                                : '/elizaos-icon.png'
+                                : '/bioicon.png'
                           }
                         />
                       </Avatar>

@@ -10,7 +10,7 @@ const chatBubbleVariant = cva('flex gap-2 max-w-[60%] items-end relative group',
   variants: {
     variant: {
       received: 'self-start',
-      sent: 'self-end flex-row-reverse',
+      sent: 'self-start',
     },
     layout: {
       default: '',
@@ -68,7 +68,7 @@ const chatBubbleMessageVariants = cva('p-4', {
   variants: {
     variant: {
       received: 'bg-secondary text-secondary-foreground rounded-lg rounded-bl-none',
-      sent: 'bg-primary text-primary-foreground rounded-lg rounded-br-none',
+      sent: 'bg-primary text-primary-foreground rounded-lg rounded-bl-none',
     },
     layout: {
       default: '',
@@ -153,9 +153,7 @@ const ChatBubbleActionWrapper = React.forwardRef<HTMLDivElement, ChatBubbleActio
       ref={ref}
       className={cn(
         'absolute top-1/2 -translate-y-1/2 flex opacity-0 group-hover:opacity-100 transition-opacity duration-200',
-        variant === 'sent'
-          ? '-left-1 -translate-x-full flex-row-reverse'
-          : '-right-1 translate-x-full',
+        variant === 'sent' ? '-right-1 translate-x-full' : '-right-1 translate-x-full',
         className
       )}
       {...props}
