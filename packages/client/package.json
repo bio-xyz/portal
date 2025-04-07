@@ -13,7 +13,10 @@
     "lint": "prettier --write ./src",
     "format": "prettier --write ./src",
     "format:check": "prettier --check ./src",
-    "clean": "rm -rf dist .turbo node_modules .turbo-tsconfig.json tsconfig.tsbuildinfo"
+    "clean": "rm -rf dist .turbo node_modules .turbo-tsconfig.json tsconfig.tsbuildinfo",
+    "db:test": "bun run scripts/test-connection.ts",
+    "db:reset": "bun run scripts/reset-db.ts",
+    "db:setup": "bun run scripts/setup-db.ts"
   },
   "dependencies": {
     "@elizaos/core": "workspace:*",
