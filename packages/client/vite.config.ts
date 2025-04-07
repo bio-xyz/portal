@@ -43,6 +43,9 @@ export default defineConfig(({ mode }): UserConfig => {
     envDir,
     define: {
       'import.meta.env.VITE_SERVER_PORT': JSON.stringify(env.SERVER_PORT || '3000'),
+      'import.meta.env.VITE_PRIVY_APP_ID': JSON.stringify(env.VITE_PRIVY_APP_ID),
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
     },
     build: {
       outDir: 'dist',

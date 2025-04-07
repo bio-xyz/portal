@@ -7,6 +7,23 @@ export interface Profile {
   level?: number;
 }
 
+export interface OnboardingProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  project_name: string;
+  project_description: string;
+  project_vision: string;
+  scientific_references: string;
+  credential_links: string;
+  team_members: string;
+  motivation: string;
+  progress: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Project {
   id: string;
   user_id: string;

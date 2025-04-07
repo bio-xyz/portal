@@ -10,6 +10,9 @@ const formSchema = z.object({
   projectVision: z.string().min(10, 'Please provide a more detailed project vision'),
   scientificReferences: z.string().min(5, 'Please provide at least one scientific reference'),
   credentialLinks: z.string().min(5, 'Please provide at least one credential link'),
+  teamMembers: z.string().min(5, 'Please provide information about your team members'),
+  motivation: z.string().min(10, 'Please provide more details about your motivation'),
+  progress: z.string().min(10, 'Please provide more details about your progress'),
 });
 
 export type WelcomeFormValues = z.infer<typeof formSchema>;
