@@ -48,7 +48,7 @@ cp .env.example .env
 
 Note: .env is optional. If you're planning to run multiple distinct agents, you can pass secrets through the character JSON
 
-#### Start E
+#### Start CoreAgent + Portal frontend
 
 Important! We now use Bun. If you are using npm, you will need to install Bun:
 https://bun.sh/docs/installation
