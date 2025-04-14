@@ -29,20 +29,26 @@ try {
     return extensions.some((ext) => file.endsWith(ext)) && existsSync(file);
   });
 
-  console.log(`Found ${filesToLint.length} files to format: ${filesToLint.join(', ')}`);
+  console.log(`Found ${filesToLint.length} files to format.`);
 
   if (filesToLint.length === 0) {
     console.log('No matching files to lint');
     process.exit(0);
   }
 
-  // Run prettier on the files
-  console.log('Running prettier on staged files...');
-  const fileList = filesToLint.join(' ');
-  execSync(`bun prettier --write ${fileList}`, { stdio: 'inherit' });
+  // Process files in batches to avoid memory issues
+  const BATCH_SIZE = 3; // Process 3 files at a time
+  for (let i = 0; i < filesToLint.length; i += BATCH_SIZE) {
+    const batch = filesToLint.slice(i, i + BATCH_SIZE);
+    console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(filesToLint.length / BATCH_SIZE)}: ${batch.join(', ')}`);
 
-  // Add the formatted files back to staging
-  execSync(`git add ${fileList}`, { stdio: 'inherit' });
+    // Run prettier on the batch of files
+    const fileList = batch.join(' ');
+    execSync(`bun prettier --write ${fileList}`, { stdio: 'inherit' });
+
+    // Add the formatted files back to staging
+    execSync(`git add ${fileList}`, { stdio: 'inherit' });
+  }
 
   console.log('Pre-commit linting completed successfully');
   process.exit(0);

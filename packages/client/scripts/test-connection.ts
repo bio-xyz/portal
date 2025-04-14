@@ -3,7 +3,7 @@ import { supabase } from '../src/lib/supabase-client';
 async function testConnection() {
   try {
     console.log('Testing Supabase connection...');
-    const { data, error } = await supabase.from('profiles').select('count');
+    const { data, error } = await supabase.auth.getSession();
 
     if (error) {
       console.error('Connection error:', error.message);

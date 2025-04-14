@@ -10,7 +10,7 @@ export async function getAgentInteractions(userId: string, limit = 10) {
     .limit(limit);
 
   if (error) throw error;
-  return data as AgentInteraction[];
+  return data as unknown as AgentInteraction[];
 }
 
 export async function saveAgentInteraction(
@@ -23,5 +23,5 @@ export async function saveAgentInteraction(
     .single();
 
   if (error) throw error;
-  return data as AgentInteraction;
+  return data as unknown as AgentInteraction;
 }

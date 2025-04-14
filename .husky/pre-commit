@@ -1,3 +1,5 @@
 #!/usr/bin/env sh
 
+# Set memory limit for Bun to prevent OOM errors
+export NODE_OPTIONS="--max-old-space-size=8192"
 bun run scripts/pre-commit-lint.js

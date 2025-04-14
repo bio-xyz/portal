@@ -1,63 +1,57 @@
-# Supabase Database Scripts
+# Database Setup Scripts
 
-This directory contains scripts for managing and testing your Supabase database connection.
+This directory contains SQL scripts and utilities for setting up and managing the BioDAO database.
 
-## Available Scripts
+## SQL Scripts
 
-### Test Connection
+- `setup-auth.sql`: Sets up authentication-related tables and functions
+- `setup-onboarding.sql`: Creates the profiles table with RLS policies
+- `setup-user-levels.sql`: Creates the user_levels table for tracking user progression
 
-Tests if the Supabase connection is working properly.
+## Database Schema
 
-```bash
-bun run db:test
+### profiles
+
+The `profiles` table stores user profile information:
+
+```sql
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL UNIQUE,
+  privy_id TEXT UNIQUE,
+  full_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  project_name TEXT NOT NULL,
+  project_description TEXT NOT NULL,
+  project_vision TEXT NOT NULL,
+  scientific_references TEXT NOT NULL,
+  credential_links TEXT NOT NULL,
+  team_members TEXT NOT NULL,
+  motivation TEXT NOT NULL,
+  progress TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 ```
 
-This will check if your Supabase instance is accessible and the connection is properly configured.
+### Row-Level Security (RLS)
 
-### Setup Database
+The scripts apply appropriate RLS policies for all tables:
 
-Sets up the necessary database schema for the application.
+- Read policies: Users can read their own data
+- Insert policies: Users can insert their own data
+- Update policies: Users can update their own data
 
-```bash
-bun run db:setup
-```
+## Utility Scripts
 
-This script creates the following:
+- `setup-db.ts`: Executes all SQL scripts in the correct order to set up the database
 
-- `user_levels` table to store user progression
-- Triggers for automatic timestamp updates
-- Row-level security policies
+## Usage
 
-Note: If your Supabase instance doesn't have the `exec_sql` RPC function, the script will output the SQL to run manually in the Supabase SQL editor.
-
-### Reset Database
-
-Resets all data in the database by truncating all tables.
+Run the database setup with:
 
 ```bash
-bun run db:reset
+npm run setup-db
 ```
 
-⚠️ **WARNING**: This will delete ALL data in the database. Use with caution, especially in production environments.
-
-## Prerequisites
-
-1. Make sure your environment variables are set correctly:
-
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
-2. Ensure Supabase SDK is installed:
-   ```bash
-   bun install @supabase/supabase-js
-   ```
-
-## Troubleshooting
-
-If you encounter connection issues:
-
-1. Check that your environment variables are set correctly
-2. Verify your Supabase project is up and running
-3. Ensure your database tables exist
-4. Check your network connection
-5. Verify IP restrictions in Supabase dashboard
+This will create all necessary tables, indexes, and security policies in your Supabase instance.

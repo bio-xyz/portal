@@ -1,32 +1,41 @@
-import PageTitle from '@/components/page-title';
-import ProfileCard from '@/components/profile-card';
+
 import ProfileOverlay from '@/components/profile-overlay';
 import { useAgents } from '@/hooks/use-query-hooks';
-import { formatAgentName } from '@/lib/utils';
 import type { Agent } from '@elizaos/core';
-import { AgentStatus } from '@elizaos/core';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip';
-import { Cog, InfoIcon, Plus } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAgentManagement } from '../hooks/use-agent-management';
+import { useEffect, useState } from 'react';
+import { getOnboardingProfile } from '../lib/onboarding';
 
-import { Button } from '../components/ui/button';
-import { Separator } from '../components/ui/separator';
 import { WelcomeForm } from '@/components/onboarding-form';
 import { useWelcomeForm } from '@/lib/welcome-form-context';
-
+import { LevelSpecificChat } from '@/components/agent/level-specific-chat';
+import { Profile } from '../types/database.types';
+import { useAuth } from '../lib/use-auth';
+import { useNavigate } from 'react-router-dom';
 export default function Home() {
   const { data: { data: agentsData } = {}, isLoading, isError, error } = useAgents();
-  const navigate = useNavigate();
   const { isFormSubmitted } = useWelcomeForm();
+  const { user } = useAuth();
 
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const navigate = useNavigate();
   // Extract agents properly from the response
   const agents = agentsData?.agents || [];
 
   const [isOverlayOpen, setOverlayOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const { startAgent, isAgentStarting, isAgentStopping } = useAgentManagement();
+  //const { startAgent, isAgentStarting, isAgentStopping } = useAgentManagement();
+
+
+  useEffect(() => {
+    const getProfile = async () => {
+      if (!user?.id) return;
+
+      const profile = await getOnboardingProfile(user?.id);
+      setProfile(profile);
+      navigate('/dashboard');
+    };
+    getProfile();
+  }, [user?.id]);
 
   const openOverlay = (agent: Agent) => {
     setSelectedAgent(agent);
@@ -40,10 +49,14 @@ export default function Home() {
 
   return (
     <>
-      {!isFormSubmitted && <WelcomeForm />}
+      {!isFormSubmitted && !profile && <WelcomeForm />}
 
       <div className="flex-1 p-3">
-        <div className="flex flex-col gap-4 h-full">{/* Agent section removed */}</div>
+        {isFormSubmitted && (
+          <div className="flex flex-col gap-4 h-full">
+            <LevelSpecificChat />
+          </div>
+        )}
       </div>
 
       <ProfileOverlay

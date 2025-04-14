@@ -1,11 +1,26 @@
 export interface Profile {
   id: string;
-  user_id: string;
-  username: string;
+  user_id?: string;
+  privy_id?: string;
+  username?: string;
   avatar_url?: string;
+  full_name?: string;
+  email?: string;
+  project_name?: string;
+  project_description?: string;
+  project_vision?: string;
+  scientific_references?: string;
+  credential_links?: string;
+  team_members?: string;
+  motivation?: string;
+  progress?: string;
   created_at: string;
+  updated_at?: string;
   level?: number;
 }
+
+// Keep OnboardingProfile as an alias to Profile for backward compatibility
+export type OnboardingProfile = Profile;
 
 export interface Project {
   id: string;
@@ -41,4 +56,27 @@ export interface NFTMetadata {
   metadata_uri: string;
   type: 'idea' | 'vision';
   created_at: string;
+  image_uri: string;
+  chain_id: number;
+  premint_uid?: string;
+  status: 'pending' | 'minted' | 'failed';
+}
+
+export interface NFTMintRequest {
+  profile_id: string;
+  type: 'idea' | 'vision';
+  prompt: string;
+  image_uri?: string;
+}
+
+export interface ZoraPremint {
+  uid: string;
+  collection: {
+    address: string;
+    name: string;
+  };
+  tokenId: string;
+  tokenURI: string;
+  creator: string;
+  status: 'pending' | 'minted';
 }

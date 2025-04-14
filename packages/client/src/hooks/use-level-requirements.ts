@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../lib/auth-provider';
+import { useAuth } from '../lib/use-auth';
 import {
   getUserRequirements,
   completeRequirement,

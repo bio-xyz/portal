@@ -4,18 +4,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { useState } from 'react';
-import { useAuth } from '../../lib/auth-provider';
+import { useAuth } from '../../lib/use-auth';
+import { X } from 'lucide-react';
 
-export function CommunityDashboard() {
+// Add interface for component props
+interface ModuleProps {
+  closeForm?: () => void;
+}
+
+export function CommunityDashboard({ closeForm }: ModuleProps) {
   const { user } = useAuth();
 
   return (
-    <Card className="w-full max-w-2xl mx-auto mb-8">
-      <CardHeader>
-        <CardTitle>Community Dashboard</CardTitle>
-        <CardDescription>Connect with the broader ecosystem of bio projects</CardDescription>
+    <Card className="w-full mx-auto border-0">
+      <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
+        <div>
+          <CardTitle>Community Dashboard</CardTitle>
+          <CardDescription>Connect with the broader ecosystem of bio projects</CardDescription>
+        </div>
+        {closeForm && (
+          <Button variant="ghost" size="icon" onClick={closeForm} className="h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4">
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-muted p-4 rounded-lg">
             <h3 className="font-medium mb-2">Active Projects</h3>
@@ -34,13 +47,13 @@ export function CommunityDashboard() {
             <div className="text-3xl font-bold">★★★★☆</div>
           </div>
         </div>
-        <Button className="w-full">Explore Community</Button>
+        <Button className="w-full" onClick={closeForm}>Explore Community</Button>
       </CardContent>
     </Card>
   );
 }
 
-export function ExpertDirectory() {
+export function ExpertDirectory({ closeForm }: ModuleProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const experts = [
@@ -60,12 +73,19 @@ export function ExpertDirectory() {
     : experts;
 
   return (
-    <Card className="w-full max-w-2xl mx-auto mb-8">
-      <CardHeader>
-        <CardTitle>Expert Directory</CardTitle>
-        <CardDescription>Connect with experts in your field</CardDescription>
+    <Card className="w-full mx-auto border-0">
+      <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
+        <div>
+          <CardTitle>Expert Directory</CardTitle>
+          <CardDescription>Connect with experts in your field</CardDescription>
+        </div>
+        {closeForm && (
+          <Button variant="ghost" size="icon" onClick={closeForm} className="h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4">
         <Input
           placeholder="Search by name or field..."
           value={searchTerm}
@@ -94,7 +114,7 @@ export function ExpertDirectory() {
   );
 }
 
-export function AdvancedResources() {
+export function AdvancedResources({ closeForm }: ModuleProps) {
   const resources = [
     {
       id: 1,
@@ -123,12 +143,19 @@ export function AdvancedResources() {
   ];
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Advanced Resources</CardTitle>
-        <CardDescription>Access premium tools and resources for your project</CardDescription>
+    <Card className="w-full mx-auto border-0">
+      <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
+        <div>
+          <CardTitle>Advanced Resources</CardTitle>
+          <CardDescription>Access premium tools and resources for your project</CardDescription>
+        </div>
+        {closeForm && (
+          <Button variant="ghost" size="icon" onClick={closeForm} className="h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4">
         <div className="grid gap-4">
           {resources.map((resource) => (
             <div key={resource.id} className="p-4 border rounded-lg flex gap-4">
@@ -145,5 +172,55 @@ export function AdvancedResources() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+export function Level4CompletionScreen() {
+  return (
+    <div className="space-y-6">
+      <div className="bg-card border rounded-lg p-6">
+        <h2 className="text-2xl font-bold mb-4">Congratulations!</h2>
+        <div className="space-y-4">
+          <p className="text-lg">Your DAO is now Level 4!</p>
+          
+          <p>The BIO team is now available to you, they'll reach out shortly.</p>
+          
+          <p>Continue sharing papers, inviting community members, and discussing science.</p>
+          
+          <p className="mt-6">
+            You can learn about the next phase of building your DAO in our{" "}
+            <a href="#" className="text-primary hover:underline font-medium">
+              Sandbox Guide
+            </a>
+          </p>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-card border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-3">Community Status</h3>
+          <div className="flex items-center gap-2 text-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>DAO Member Size: <strong>10</strong></span>
+          </div>
+        </div>
+        
+        <div className="bg-card border rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-3">Science Bank</h3>
+          <div className="flex items-center gap-2 text-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+            <span>NFTs Minted: <strong>3</strong></span>
+          </div>
+        </div>
+      </div>
+      
+    </div>
   );
 }
