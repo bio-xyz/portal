@@ -150,3 +150,7 @@ playwright-report/
 *.temp
 temp/
 tmp/
+llms-full.text
+ONBOARDING_REFACTOR_PLAN.md
+ELIZA_AGENT_IMPLEMENTATION_PLAN.md
+.husky/pre-commit

@@ -2,7 +2,7 @@ import { supabase } from '../src/lib/supabase-client';
 
 async function resetDatabase() {
   // List of tables to reset
-  const tables = ['profiles', 'projects', 'agent_interactions', 'user_progress', 'nft_metadata'];
+  const tables = ['profiles', 'projects', 'agent_interactions', 'user_progress', 'nft_metadata', 'user_levels'];
 
   console.log('Starting database reset...');
 
@@ -10,7 +10,7 @@ async function resetDatabase() {
     // Truncate each table
     for (const table of tables) {
       console.log(`Truncating ${table}...`);
-      const { error } = await supabase.from(table).delete().neq('id', '0');
+      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
       if (error) {
         if (error.code === '42P01') {

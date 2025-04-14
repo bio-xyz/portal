@@ -1,3 +1,118 @@
+# BioDAO Portal Client
+
+This is the client-side application for the BioDAO Portal, built with React, TypeScript, and Vite.
+
+## Database Structure
+
+The application uses Supabase for database storage and authentication. Key tables include:
+
+### Profiles Table
+
+The `profiles` table stores user profile information including:
+- Basic user information (user_id, privy_id, email)
+- Project details (name, description, vision)
+- Scientific references and credentials
+- Team information and progress
+
+### User Levels
+
+The `user_levels` table tracks user progression within the platform.
+
+### NFT Metadata
+
+The `nft_metadata` table stores information about NFTs minted by users.
+
+## Development Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Database Setup
+
+The database schema can be set up using the scripts in the `scripts` directory:
+
+```bash
+# Setup the database tables and security policies
+npm run setup-db
+```
+
+This will create the necessary tables, indexes, and security policies in your Supabase instance.
+
+## Authentication
+
+The application uses Privy for authentication, with Supabase as the backend user store. When a user authenticates via Privy, a corresponding user is created in Supabase.
+
+## Discord API Interaction (Backend)
+
+To verify a Discord server and fetch member counts, the backend server needs to make a direct, authenticated request to the official Discord API.
+
+**Note:** This interaction **must** happen on the backend server. Your Discord Bot Token should *never* be exposed in the frontend client code.
+
+**Endpoint:** `GET /guilds/{serverId}`
+
+**Query Parameters:**
+- `with_counts=true`: Include approximate member counts in the response.
+
+**Headers:**
+- `Authorization: Bot <YOUR_DISCORD_BOT_TOKEN>`: Authenticate the request using your bot token (stored securely on the backend).
+- `User-Agent: YourBotName (YourProjectWebsite, v1.0)`: Recommended by Discord.
+
+**Example Request (using fetch in Node.js):**
+
+```javascript
+const serverId = '...'; // The server ID from the frontend
+const botToken = process.env.DISCORD_BOT_TOKEN; // Securely loaded from backend environment
+
+const url = `https://discord.com/api/v10/guilds/${serverId}?with_counts=true`;
+
+try {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bot ${botToken}`,
+      'User-Agent': 'BioDAOIntegrationBot (BioDAO Portal, v1.0)'
+    }
+  });
+
+  if (response.ok) {
+    const data = await response.json();
+    const serverName = data.name;
+    const memberCount = data.approximate_member_count;
+    // Link serverId, serverName, memberCount to user in database
+    // Send { success: true, server: { id, name, memberCount } } to frontend
+  } else {
+    // Handle errors (404: Not Found, 403: Missing Permissions, etc.)
+    // Send { success: false, error: '...' } to frontend
+  }
+} catch (error) {
+  // Handle network errors
+  // Send { success: false, error: '...' } to frontend
+}
+```
+
+**Expected Success Response Body (JSON):**
+
+```json
+{
+  "id": "YOUR_SERVER_ID",
+  "name": "Your Server Name",
+  "icon": "...",
+  // ... other guild fields
+  "approximate_member_count": 123,
+  "approximate_presence_count": 45
+}
+```
+
+Refer to the official [Discord API Documentation](https://discord.com/developers/docs/resources/guild#get-guild) for more details.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

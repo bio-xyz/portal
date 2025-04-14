@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../lib/auth-provider';
-import { getUserLevel, updateUserLevel, incrementUserLevel } from '../lib/api/user-levels';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../lib/use-auth';
+import { updateUserLevel, incrementUserLevel, getUserLevel, createDefaultUserLevel, createOrUpdateUserLevel } from '../lib/api/user-levels';
 import { supabase } from '../lib/supabase-client';
 
 interface UserLevel {
@@ -10,84 +10,71 @@ interface UserLevel {
 
 export function useUserLevel() {
   const { user } = useAuth();
-  const [level, setLevel] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  const privyId = user?.id;
+  const [level, setLevel] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLevel = useCallback(async () => {
+    if (!privyId) {
+      setIsLoading(false);
+      setLevel(1);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const userLevelData = await getUserLevel(privyId);
+      if (userLevelData && typeof userLevelData.level === 'number') {
+        setLevel(userLevelData.level);
+      } else {
+        console.log(`No level data found for ${privyId}, attempting to ensure level 1 record exists.`);
+        setLevel(1);
+        createOrUpdateUserLevel(privyId).catch(err => console.error("Error ensuring level 1 record:", err));
+      }
+    } catch (err: any) {
+      console.error("Error fetching user level:", err);
+      setError(err.message || 'Failed to fetch user level');
+      setLevel(1);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [privyId]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    fetchLevel();
+  }, [fetchLevel]);
 
-    const fetchUserLevel = async () => {
-      setIsLoading(true);
-      setError(null);
+  const incrementLevel = useCallback(async () => {
+    if (!privyId) {
+      console.error("Cannot increment level without privyId.");
+      throw new Error("User not authenticated");
+    }
 
-      try {
-        const data = await getUserLevel(user.id);
-        setLevel(data.level);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Unknown error'));
-      } finally {
-        setIsLoading(false);
+    const currentLevel = level;
+    const nextLevel = currentLevel + 1;
+
+    setLevel(nextLevel);
+    setError(null);
+
+    try {
+      const { success, error: updateError } = await updateUserLevel(privyId, nextLevel);
+      if (!success) {
+        console.error("Failed to update level on backend:", updateError);
+        setLevel(currentLevel);
+        setError(updateError?.message || 'Failed to update level');
+        throw updateError || new Error('Failed to update level');
       }
-    };
-
-    fetchUserLevel();
-
-    // Set up real-time subscription for level changes
-    const subscription = supabase
-      .channel('user-level-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'user_levels',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          setLevel((payload.new as UserLevel).level);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(subscription);
-    };
-  }, [user]);
-
-  const setUserLevel = async (newLevel: number) => {
-    if (!user?.id) return;
-
-    setIsLoading(true);
-    try {
-      await updateUserLevel(user.id, newLevel);
-      // Note: We don't need to update the state here as the real-time subscription will handle it
+      console.log(`Successfully updated level to ${nextLevel} for ${privyId}`);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Unknown error'));
-    } finally {
-      setIsLoading(false);
+      if (level !== currentLevel) {
+        setLevel(currentLevel);
+      }
+      setError(err instanceof Error ? err.message : 'An unknown error occurred during level update');
+      throw err;
     }
-  };
+  }, [privyId, level]);
 
-  const incrementLevel = async () => {
-    if (!user?.id) return;
-
-    setIsLoading(true);
-    try {
-      await incrementUserLevel(user.id);
-      // Note: We don't need to update the state here as the real-time subscription will handle it
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Unknown error'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return {
-    level,
-    isLoading,
-    error,
-    setUserLevel,
-    incrementLevel,
-  };
+  return { level, isLoading, error, refetchLevel: fetchLevel, incrementLevel };
 }

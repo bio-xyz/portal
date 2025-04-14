@@ -1,60 +1,103 @@
 'use client';
 
 import { useUserLevel } from '../hooks/use-user-level';
-import { Button } from './ui/button';
+import { useAuth } from '../lib/use-auth';
 import { Card } from './ui/card';
+import { Badge } from './ui/badge';
+import { Crown, Star } from 'lucide-react';
 
 export function UserLevelDisplay() {
-  const { level, isLoading, error, incrementLevel } = useUserLevel();
+  const { level, isLoading, error } = useUserLevel();
+  const { user } = useAuth();
 
   if (isLoading) {
-    return <div>Loading user level...</div>;
+    return (
+      <Card className="p-6 bg-card animate-pulse h-32 max-w-md mx-auto mb-6">
+        <div className="h-4 bg-muted rounded w-1/2 mb-4"></div>
+        <div className="h-10 bg-muted rounded mb-4"></div>
+        <div className="h-4 bg-muted rounded w-3/4"></div>
+      </Card>
+    );
   }
 
   if (error) {
-    return <div>Error loading user level: {error.message}</div>;
+    return (
+      <Card className="p-6 max-w-md mx-auto border-destructive/50 text-destructive mb-6">
+        <h2 className="text-xl font-semibold mb-1">Error</h2>
+        <p className="text-sm">Could not load user level: {error.message}</p>
+      </Card>
+    );
   }
 
+  const userLevel = level || 1;
+  const userName = user?.email?.address 
+    ? user.email.address.split('@')[0] 
+    : 'Researcher';
+
   return (
-    <Card className="p-6 max-w-md mx-auto">
-      <h2 className="text-2xl font-bold mb-4">User Level</h2>
-      <div className="flex items-center mb-4">
-        <div className="text-5xl font-bold mr-4">{level ?? 0}</div>
-        <div className="flex flex-col">
-          <span className="text-sm text-gray-500">Current Level</span>
-          {level !== null && level > 1 && (
-            <span className="text-xs text-green-500">Leveled up!</span>
-          )}
-        </div>
+    <Card className="p-6 max-w-md mx-auto mb-6 bg-gradient-to-br from-background to-muted">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-semibold">Welcome, {userName}</h2>
+        {getLevelBadge(userLevel)}
       </div>
 
-      <Button
-        onClick={incrementLevel}
-        className="w-full bg-bio-accent hover:bg-bio-accent/90 text-bio-accent-foreground"
-      >
-        Level Up
-      </Button>
-
-      <p className="mt-4 text-sm text-gray-500">{getExplanationForLevel(level ?? 0)}</p>
+      <div className="flex items-center mb-4">
+        <div className="bg-primary/10 p-3 rounded-full mr-4">
+          {userLevel === 1 && <Star className="h-8 w-8 text-primary" />}
+          {userLevel === 2 && <Star className="h-8 w-8 text-amber-500" />}
+          {userLevel === 3 && <Star className="h-8 w-8 text-violet-500" />}
+          {userLevel === 4 && <Crown className="h-8 w-8 text-amber-500" />}
+        </div>
+        <div>
+          <div className="text-2xl font-bold">{getLevelName(userLevel)}</div>
+          <div className="text-sm text-muted-foreground">{getLevelDescription(userLevel)}</div>
+        </div>
+      </div>
     </Card>
   );
 }
 
-function getExplanationForLevel(level: number): string {
+function getLevelBadge(level: number) {
   switch (level) {
-    case 0:
-      return "You haven't started your journey yet. Sign in to begin.";
     case 1:
-      return "Welcome to BioDAO! You're at the beginning of your scientific journey.";
+      return <Badge variant="outline" className="bg-primary/10 text-primary">Level 1</Badge>;
     case 2:
-      return "You've reached level 2! You now have access to more advanced features.";
+      return <Badge variant="outline" className="bg-amber-500/10 text-amber-500">Level 2</Badge>;
     case 3:
-      return 'Level 3 unlocks strategic planning and connections to experts.';
+      return <Badge variant="outline" className="bg-violet-500/10 text-violet-500">Level 3</Badge>;
     case 4:
-      return 'At level 4, you can create and mint your own NFTs.';
-    case 5:
-      return 'Level 5 grants you access to exclusive resources and community features.';
+      return <Badge variant="outline" className="bg-green-500/10 text-green-500">Level 4</Badge>;
     default:
-      return `You're at level ${level}! Keep up the great work.`;
+      return <Badge variant="outline">Level {level}</Badge>;
+  }
+}
+
+function getLevelName(level: number): string {
+  switch (level) {
+    case 1:
+      return 'Inception Stage';
+    case 2:
+      return 'Community Builder';
+    case 3:
+      return 'Scientific Collaborator';
+    case 4:
+      return 'Ecosystem Partner';
+    default:
+      return `Level ${level}`;
+  }
+}
+
+function getLevelDescription(level: number): string {
+  switch (level) {
+    case 1:
+      return 'Document scientific ideas & mint NFTs';
+    case 2:
+      return 'Build a community with Discord';
+    case 3:
+      return 'Expand community & share research';
+    case 4:
+      return 'Access to the full ecosystem';
+    default:
+      return 'Advanced BioDAO member';
   }
 }

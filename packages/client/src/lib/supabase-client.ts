@@ -1,6 +1,89 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables:', {
+    url: supabaseUrl ? 'present' : 'missing',
+    key: supabaseAnonKey ? 'present' : 'missing'
+  });
+  throw new Error(
+    'Missing Supabase environment variables. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file.'
+  );
+}
+
+// Create a client for each JWT token
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
+let currentJwt: string | null = null;
+
+// Function to get or create Supabase client with JWT
+export const getSupabase = () => {
+  if (!supabaseInstance) {
+    // Initialize with anon key
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      }
+    });
+  }
+  return supabaseInstance;
+};
+
+// Export a convenience accessor
+export const supabase = getSupabase();
+
+// Function to set JWT token
+export const setSupabaseJwt = (jwt: string | null) => {
+  // Skip if trying to set the same JWT (prevents loops)
+  if (jwt === currentJwt) {
+    return;
+  }
+
+  // Store the current JWT
+  currentJwt = jwt;
+
+  if (jwt) {
+    // Create a new client instance with the JWT in the Authorization header
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`
+        }
+      }
+    });
+  } else {
+    // Reset to a clean client without auth header
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      }
+    });
+  }
+};
+
+// Service role client for admin operations (bypasses RLS)
+export const supabaseAdmin = supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false
+    },
+    global: {
+      headers: {
+        'apikey': supabaseServiceKey
+      }
+    }
+  })
+  : null;

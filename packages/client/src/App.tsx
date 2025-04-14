@@ -1,8 +1,8 @@
 import './index.css';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Route, Routes, useParams } from 'react-router-dom';
 import AgentCreator from './components/agent-creator';
 import { AppSidebar } from './components/app-sidebar';
 import { LogViewer } from './components/log-viewer';
@@ -11,7 +11,8 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { STALE_TIMES } from './hooks/use-query-hooks';
 import useVersion from './hooks/use-version';
 import { apiClient } from './lib/api';
-import Chat from './routes/chat';
+import { CoreAgentChat } from '@/components/agent/core-agent-chat';
+import { LevelSpecificChat } from '@/components/agent/level-specific-chat';
 import Room from './routes/room';
 import AgentCreatorRoute from './routes/createAgent';
 import Home from './routes/home';
@@ -19,6 +20,13 @@ import Settings from './routes/settings';
 import EnvSettings from './components/env-settings';
 import { WelcomeFormProvider } from './lib/welcome-form-context';
 import { PrivyAuthProvider } from './lib/auth-provider';
+import { DashboardLayout } from './components/dashboard-layout';
+import { WagmiProviderWrapper } from './lib/wagmi-provider';
+import ProfilePage from './pages/profile';
+import { useAgent } from '@/hooks/use-query-hooks';
+import { v4 as uuidv4 } from 'uuid';
+import CoreAgentRoute from './routes/core-agent';
+
 // Create a query client with optimized settings
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,35 +80,39 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <PrivyAuthProvider>
-        <WelcomeFormProvider>
-          <div
-            className="dark antialiased"
-            style={{
-              colorScheme: 'dark',
-            }}
-          >
-            <BrowserRouter>
-              <TooltipProvider delayDuration={0}>
-                <SidebarProvider>
-                  <AppSidebar />
-                  <SidebarInset>
-                    <Routes>
-                      <Route path="/" element={<Home />} />
-                      <Route path="chat/:agentId" element={<Chat />} />
-                      <Route path="settings/:agentId" element={<Settings />} />
-                      <Route path="agents/new" element={<AgentCreatorRoute />} />
-                      <Route path="/create" element={<AgentCreator />} />
-                      <Route path="/logs" element={<LogViewer />} />
-                      <Route path="room/:serverId" element={<Room />} />
-                      <Route path="settings/" element={<EnvSettings />} />
-                    </Routes>
-                  </SidebarInset>
-                </SidebarProvider>
-                <Toaster />
-              </TooltipProvider>
-            </BrowserRouter>
-          </div>
-        </WelcomeFormProvider>
+        <WagmiProviderWrapper>
+          <WelcomeFormProvider>
+            <div
+              className="dark antialiased"
+              style={{
+                colorScheme: 'dark',
+              }}
+            >
+              <BrowserRouter>
+                <TooltipProvider delayDuration={0}>
+                  <SidebarProvider>
+                    <AppSidebar />
+                    <SidebarInset>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="chat/:agentId" element={<CoreAgentRoute />} />
+                        <Route path="settings/:agentId" element={<Settings />} />
+                        <Route path="agents/new" element={<AgentCreatorRoute />} />
+                        <Route path="/create" element={<AgentCreator />} />
+                        <Route path="/logs" element={<LogViewer />} />
+                        <Route path="room/:serverId" element={<Room />} />
+                        <Route path="settings/" element={<EnvSettings />} />
+                        <Route path="/dashboard" element={<DashboardLayout />} />
+                        <Route path="/profile" element={<ProfilePage />} />
+                      </Routes>
+                    </SidebarInset>
+                  </SidebarProvider>
+                  <Toaster />
+                </TooltipProvider>
+              </BrowserRouter>
+            </div>
+          </WelcomeFormProvider>
+        </WagmiProviderWrapper>
       </PrivyAuthProvider>
     </QueryClientProvider>
   );

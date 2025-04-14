@@ -34,9 +34,9 @@ const fetcher = async ({
     headers: headers
       ? headers
       : {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
   };
 
   if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
@@ -147,6 +147,13 @@ interface AgentLog {
   details?: string;
   roomId?: string;
   [key: string]: any;
+}
+
+// Add Discord Server info interface
+interface DiscordServerInfo {
+  id: string;
+  name: string;
+  memberCount: number;
 }
 
 /**
@@ -483,4 +490,39 @@ export const apiClient = {
       },
     });
   },
+
+  // --- Add verifyDiscordServer function here ---
+  verifyDiscordServer: async (serverId: string): Promise<{
+    success: boolean;
+    server?: DiscordServerInfo;
+    error?: string
+  }> => {
+    return fetcher({
+      url: '/discord/verify-server', // Ensure this matches your backend route
+      method: 'POST',
+      body: { serverId },
+      // fetcher likely handles Content-Type: application/json by default
+    });
+    // The fetcher handles response.ok check and error throwing
+  },
+  // --- End verifyDiscordServer function ---
+
+  // --- Add getServerMessageStats function here ---
+  getServerMessageStats: async (serverId: string): Promise<{
+    success: boolean;
+    totalUserMessageCount?: number;
+    qualityMessageCount?: number;
+    averageQualityScore?: number;
+    error?: string;
+  }> => {
+    if (!serverId) {
+      clientLogger.error('getServerMessageStats called without serverId');
+      return Promise.reject(new Error('Server ID is required.'));
+    }
+    return fetcher({
+      url: `/discord/server/${serverId}/message-stats`,
+      method: 'GET',
+    });
+  }
+  // --- End getServerMessageStats function ---
 };

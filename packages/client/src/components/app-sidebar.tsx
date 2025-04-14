@@ -15,7 +15,7 @@ import info from '@/lib/info.json';
 import { formatAgentName } from '@/lib/utils';
 import { AgentStatus } from '@elizaos/core';
 import type { Agent } from '@elizaos/core';
-import { Book, Plus, TerminalIcon } from 'lucide-react';
+import { Book, Plus, TerminalIcon, Palette, LayoutDashboard, User, FlaskConical, Bot } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router';
 import ConnectionStatus from './connection-status';
@@ -80,39 +80,33 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
-          {/* Create Button with Dropdown */}
-          <div className="px-4 py-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="default" className="w-full justify-start">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Onchain Science Bank
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuItem asChild>
-                  <NavLink to="/create" className="flex items-center cursor-pointer">
-                    <span>BioDAO Genesis Card</span>
-                  </NavLink>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <NavLink to="/create" className="flex items-center cursor-pointer">
-                    <span>Knowledge Graph</span>
-                  </NavLink>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <NavLink to="/create" className="flex items-center cursor-pointer">
-                    <span>Papers Submitted</span>
-                  </NavLink>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+
 
           {/* Agents Section */}
           <SidebarGroup>
             <SidebarGroupContent className="px-2">
               <SidebarMenu>
+
+                {/* Dashboard Menu Item */}
+                <SidebarMenuItem>
+                  <NavLink to="/dashboard">
+                    <SidebarMenuButton
+                      isActive={location.pathname === '/dashboard'}
+                      className="transition-colors px-4 h-full py-1 rounded-md"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 flex justify-center items-center">
+                          <div className="relative bg-gray-600 rounded-full w-full h-full">
+                            <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
+                              <LayoutDashboard className="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-base">Dashboard</span>
+                      </div>
+                    </SidebarMenuButton>
+                  </NavLink>
+                </SidebarMenuItem>
                 {agentsLoading ? (
                   <div>
                     {Array.from({ length: 5 }).map((_, _index) => (
@@ -160,6 +154,30 @@ export function AppSidebar() {
                         </NavLink>
                       </SidebarMenuItem>
                     ))}
+
+
+                    {/* Profile Menu Item */}
+                    <SidebarMenuItem>
+                      <NavLink to="/profile">
+                        <SidebarMenuButton
+                          isActive={location.pathname === '/profile'}
+                          className="transition-colors px-4 my-4 h-full py-1 rounded-md"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex justify-center items-center">
+                              <div className="relative bg-gray-600 rounded-full w-full h-full">
+                                <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
+                                  <User className="w-5 h-5 text-white" />
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-base">My Profile</span>
+                          </div>
+                        </SidebarMenuButton>
+                      </NavLink>
+                    </SidebarMenuItem>
+
+
                   </div>
                 )}
               </SidebarMenu>
