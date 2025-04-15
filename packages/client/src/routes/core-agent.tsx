@@ -24,15 +24,18 @@ export default function CoreAgentRoute() {
   const [initialMessage, setInitialMessage] = useState<string | null>(null);
   const entityId = getEntityId();
   const socketIOManager = SocketIOManager.getInstance();
+  const userId = user?.id || '';
 
   // Initialize socket connection at the route level
   useEffect(() => {
     if (agentId && entityId) {
-      // Initialize socket connection
-      socketIOManager.initialize(entityId, [agentId]);
-      clientLogger.info(`[CoreAgentRoute] Initialized socket connection for agent ${agentId}`);
+      // Initialize socket connection with user ID
+      socketIOManager.initialize(entityId, [agentId], { userId });
+      clientLogger.info(
+        `[CoreAgentRoute] Initialized socket connection for agent ${agentId} with user ${userId}`
+      );
     }
-  }, [agentId, entityId]);
+  }, [agentId, entityId, userId]);
 
   useEffect(() => {
     if (agent?.name) {
@@ -66,4 +69,4 @@ export default function CoreAgentRoute() {
       )}
     </ResizablePanelGroup>
   );
-} 
+}

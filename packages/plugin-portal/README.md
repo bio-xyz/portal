@@ -5,12 +5,14 @@ This ElizaOS plugin implements the BioDAO onboarding flow using an AI-first desi
 ## Features
 
 - **Level-Based Progression System**
-  - Level 1: App Started (Wallet connected)
-  - Level 2: Science NFTs Minted (Idea NFT, Hypothesis NFT)
-  - Level 3: Community Initiated (Discord created, 4 Discord members)
-  - Level 4: Community Growth + Proof (10 Discord members, 25 papers shared, 100 messages sent)
+
+  - Level 1: Science NFTs Minted (Idea NFT, Hypothesis NFT)
+  - Level 2: Community Initiated (Discord created, 4 Discord members)
+  - Level 3: Community Growth + Proof (10 Discord members, 25 papers shared, 100 messages sent)
+  - Level 4: Sandbox Guide
 
 - **Discord Integration**
+
   - Bot invitation system
   - Member count tracking
   - Message quality assessment
@@ -68,16 +70,19 @@ The plugin provides the following actions:
 Before publishing your plugin to the ElizaOS registry, ensure you meet these requirements:
 
 1. **GitHub Repository**
+
    - Create a public GitHub repository for this plugin
    - Add the 'elizaos-plugins' topic to the repository
    - Use 'main' as the default branch
 
 2. **Required Assets**
+
    - Add images to the `images/` directory:
      - `logo.jpg` (400x400px square, <500KB)
      - `banner.jpg` (1280x640px, <1MB)
 
 3. **Publishing Process**
+
    ```bash
    # Check if your plugin meets all registry requirements
    npx elizaos plugin publish --test

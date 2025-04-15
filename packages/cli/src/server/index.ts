@@ -48,8 +48,8 @@ const AGENT_RUNTIME_URL =
 /**
  * Class representing an agent server.
  */ /**
-* Represents an agent server which handles agents, database, and server functionalities.
-*/
+ * Represents an agent server which handles agents, database, and server functionalities.
+ */
 export class AgentServer {
   public app: express.Application;
   private agents: Map<UUID, IAgentRuntime>;
@@ -158,10 +158,6 @@ export class AgentServer {
 
       this.app.use('/media/uploads', express.static(uploadsPath));
       this.app.use('/media/generated', express.static(generatedPath));
-
-      // Mount the Discord API router specifically under /api/discord
-      this.app.use('/api/discord', discordRouter);
-      logger.info('Mounted Discord API router at /api/discord');
 
       // Add specific middleware to handle portal assets
       // This needs to be before the static middleware

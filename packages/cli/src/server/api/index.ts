@@ -133,9 +133,11 @@ export function setupSocketIO(
               content: {
                 text: payload.message,
                 source: `${source}:${payload.senderName}`,
+                userId: payload.userId,
               },
               metadata: {
                 entityName: payload.senderName,
+                userId: payload.userId,
               },
               createdAt: Date.now(),
             };

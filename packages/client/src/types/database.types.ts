@@ -69,14 +69,10 @@ export interface NFTMintRequest {
   image_uri?: string;
 }
 
-export interface ZoraPremint {
-  uid: string;
-  collection: {
-    address: string;
-    name: string;
-  };
-  tokenId: string;
-  tokenURI: string;
-  creator: string;
-  status: 'pending' | 'minted';
+export interface LevelRequirements {
+  id: string;
+  level: number;
+  description: string; // Optional: Human-readable description
+  requirements_config: Record<string, any>; // Use JSONB in the DB
+  created_at: Date; // Use native Date/Timestamp type
 }
