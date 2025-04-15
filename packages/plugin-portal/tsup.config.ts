@@ -16,5 +16,10 @@ export default defineConfig({
     'http',
     '@elizaos/core',
     'zod',
+    '@reflink/reflink',
+    '@node-llama-cpp',
+    'agentkeepalive',
+    'fluent-ffmpeg',
+    'zod',
   ],
 });

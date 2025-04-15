@@ -3,11 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button } from '../ui/button';
-import {
-  ChatBubble,
-  ChatBubbleMessage,
-  ChatBubbleTimestamp,
-} from '../ui/chat/chat-bubble';
+import { ChatBubble, ChatBubbleMessage, ChatBubbleTimestamp } from '../ui/chat/chat-bubble';
 import { ChatInput } from '../ui/chat/chat-input';
 import { ChatMessageList } from '../ui/chat/chat-message-list';
 import { USER_NAME } from '@/constants';
@@ -29,11 +25,22 @@ import { useAutoScroll } from '../ui/chat/hooks/useAutoScroll';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { CHAT_SOURCE } from '@/constants';
 import clientLogger from '@/lib/logger';
+import { useAuth } from '@/lib/use-auth';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
+import { ChevronRight } from 'lucide-react';
+
+interface IAttachment {
+  url: string;
+  title: string;
+}
 
 type ExtraContentFields = {
   name: string;
   createdAt: number;
   isLoading?: boolean;
+  thought?: string;
+  actions?: string | string[];
+  attachments?: IAttachment[];
 };
 
 type ContentWithUser = Content & ExtraContentFields;
@@ -64,6 +71,24 @@ function MessageContent({
         {...(message.name === USER_NAME ? { variant: 'sent' } : {})}
         {...(!message.text ? { className: 'bg-transparent' } : {})}
       >
+        {message.name !== USER_NAME && (
+          <div className="w-full">
+            {message.text && message.thought && (
+              <Collapsible className="mb-1">
+                <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors group">
+                  <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
+                  Thought Process
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-5 pt-1">
+                  <Badge variant="outline" className="text-xs">
+                    {message.thought}
+                  </Badge>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </div>
+        )}
+
         <div className="py-2">
           {message.name === USER_NAME ? (
             message.text
@@ -73,15 +98,55 @@ function MessageContent({
             message.text
           )}
         </div>
+        {!message.text &&
+          message.thought &&
+          (message.name === USER_NAME ? (
+            message.thought
+          ) : shouldAnimate ? (
+            <AIWriter>
+              <span className="italic text-muted-foreground">{message.thought}</span>
+            </AIWriter>
+          ) : (
+            <span className="italic text-muted-foreground">{message.thought}</span>
+          ))}
+
+        {message.attachments?.map((attachment: IAttachment) => (
+          <div className="flex flex-col gap-1" key={`${attachment.url}-${attachment.title}`}>
+            <img
+              alt="attachment"
+              src={attachment.url}
+              width="100%"
+              height="100%"
+              className="w-64 rounded-md"
+            />
+            <div className="flex items-center justify-between gap-4">
+              <span />
+              <span />
+            </div>
+          </div>
+        ))}
         {message.text && message.createdAt && (
           <ChatBubbleTimestamp timestamp={moment(message.createdAt).format('LT')} />
         )}
       </ChatBubbleMessage>
-      {message.name !== USER_NAME && message.text && !message.isLoading && (
+      {message.name !== USER_NAME && (
         <div className="flex justify-between items-end w-full">
-          <div className="flex items-center gap-2">
-            <CopyButton text={message.text} />
-            <ChatTtsButton agentId={agentId} text={message.text} />
+          <div>
+            {message.text && !message.isLoading ? (
+              <div className="flex items-center gap-2">
+                <CopyButton text={message.text} />
+                <ChatTtsButton agentId={agentId} text={message.text} />
+              </div>
+            ) : (
+              <div />
+            )}
+          </div>
+          <div>
+            {message.text && message.actions && (
+              <Badge variant="outline" className="text-sm">
+                {Array.isArray(message.actions) ? message.actions.join(', ') : message.actions}
+              </Badge>
+            )}
           </div>
         </div>
       )}
@@ -99,6 +164,7 @@ export function CoreAgentChat({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [input, setInput] = useState('');
   const [messageProcessing, setMessageProcessing] = useState<boolean>(false);
+  const { user } = useAuth();
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,87 +173,18 @@ export function CoreAgentChat({
 
   const entityId = getEntityId();
   const roomId = WorldManager.generateRoomId(agentId);
+  const userId = user?.id || '';
 
   const { data: messages = [] } = useMessages(agentId, roomId);
   const socketIOManager = SocketIOManager.getInstance();
   const animatedMessageIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    // Initialize Socket.io connection
-    socketIOManager.initialize(entityId, [agentId]);
-
-    // Join room after initialization
-    const joinRoom = async () => {
-      try {
-        await socketIOManager.joinRoom(roomId);
-        clientLogger.info(`[CoreAgentChat] Joined room ${roomId} with agent ${agentId}`);
-        
-        // Send initial greeting message to activate the agent
-        if (agentData?.name) {
-          const greeting = `Hello, I'm ${agentData.name}. How can I assist you with your project today?`;
-          socketIOManager.sendMessage(greeting, roomId, CHAT_SOURCE);
-        }
-      } catch (error) {
-        clientLogger.error(`[CoreAgentChat] Failed to join room ${roomId}:`, error);
-      }
-    };
-    joinRoom();
-
-    const handleMessageBroadcasting = (data: ContentWithUser) => {
-      if (!data || data.roomId !== roomId) return;
-
-      const isCurrentUser = data.senderId === entityId;
-      const newMessage: ContentWithUser = {
-        ...data,
-        name: isCurrentUser ? USER_NAME : (data.senderName as string),
-        createdAt: data.createdAt || Date.now(),
-        isLoading: false,
-      };
-
-      queryClient.setQueryData(
-        ['messages', agentId, roomId, worldId],
-        (old: ContentWithUser[] = []) => {
-          const isDuplicate = old.some(
-            (msg) =>
-              msg.text === newMessage.text &&
-              msg.name === newMessage.name &&
-              Math.abs((msg.createdAt || 0) - (newMessage.createdAt || 0)) < 5000
-          );
-
-          if (isDuplicate) return old;
-
-          animatedMessageIdRef.current = typeof newMessage.id === 'string' ? newMessage.id : null;
-          return [...old, newMessage];
-        }
-      );
-    };
-
-    const handleMessageComplete = (data: any) => {
-      if (data.roomId === roomId) {
-        setMessageProcessing(false);
-      }
-    };
-
-    const msgHandler = socketIOManager.evtMessageBroadcast.attach((data) => [
-      data as unknown as ContentWithUser,
-    ]);
-    const completeHandler = socketIOManager.evtMessageComplete.attach((data) => [
-      data as unknown as any,
-    ]);
-
-    msgHandler.attach(handleMessageBroadcasting);
-    completeHandler.attach(handleMessageComplete);
-
-    return () => {
-      socketIOManager.leaveRoom(roomId);
-      msgHandler.detach();
-      completeHandler.detach();
-    };
-  }, [roomId, agentId, entityId, queryClient, socketIOManager, worldId]);
-
   const { scrollRef, isAtBottom, scrollToBottom, disableAutoScroll } = useAutoScroll({
     smooth: true,
   });
+
+  // Use a stable ID for refs to avoid excessive updates
+  const scrollRefId = useRef(`scroll-${Math.random().toString(36).substring(2, 9)}`).current;
 
   const prevMessageCountRef = useRef(0);
 
@@ -199,16 +196,129 @@ export function CoreAgentChat({
 
   useEffect(() => {
     if (messages.length !== prevMessageCountRef.current) {
+      clientLogger.info(`[CoreAgentChat][${scrollRefId}] Messages updated, scrolling to bottom`);
       safeScrollToBottom();
       prevMessageCountRef.current = messages.length;
     }
-  }, [messages.length, safeScrollToBottom]);
+  }, [messages.length, safeScrollToBottom, scrollRefId]);
+
+  useEffect(() => {
+    safeScrollToBottom();
+  }, [safeScrollToBottom]);
 
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
   }, []);
+
+  useEffect(() => {
+    // Initialize Socket.io connection with user ID
+    socketIOManager.initialize(entityId, [agentId], { userId });
+
+    // Join room after initialization
+    const joinRoom = async () => {
+      try {
+        await socketIOManager.joinRoom(roomId, { userId });
+        clientLogger.info(`[CoreAgentChat] Joined room ${roomId} with agent ${agentId}`);
+
+        // Send initial greeting message to activate the agent
+        if (agentData?.name) {
+          const greeting = `Hello, I'm ${agentData.name}. How can I assist you with your project today?`;
+          socketIOManager.sendMessage(greeting, roomId, CHAT_SOURCE, { userId });
+        }
+      } catch (error) {
+        clientLogger.error(`[CoreAgentChat] Failed to join room ${roomId}:`, error);
+      }
+    };
+    joinRoom();
+
+    const handleMessageBroadcasting = (data: ContentWithUser) => {
+      // Skip messages that don't have required content
+      if (!data) {
+        clientLogger.warn('[CoreAgentChat] Received empty or invalid message data:', data);
+        return;
+      }
+
+      // Skip messages not for this room
+      if (data.roomId !== roomId) {
+        clientLogger.info(
+          `[CoreAgentChat] Ignoring message for different room: ${data.roomId}, we're in ${roomId}`
+        );
+        return;
+      }
+
+      const isCurrentUser = data.senderId === entityId;
+      const newMessage: ContentWithUser = {
+        ...data,
+        name: isCurrentUser ? USER_NAME : (data.senderName as string),
+        createdAt: data.createdAt || Date.now(),
+        isLoading: false,
+      };
+
+      clientLogger.info(
+        `[CoreAgentChat] Adding new message to UI from ${newMessage.name}:`,
+        newMessage
+      );
+
+      queryClient.setQueryData(
+        ['messages', agentId, roomId, worldId],
+        (old: ContentWithUser[] = []) => {
+          clientLogger.info(`[CoreAgentChat] Current messages:`, old?.length || 0);
+          // Check if this message is already in the list (avoid duplicates)
+          const isDuplicate = old.some(
+            (msg) =>
+              msg.text === newMessage.text &&
+              msg.name === newMessage.name &&
+              Math.abs((msg.createdAt || 0) - (newMessage.createdAt || 0)) < 5000 // Within 5 seconds
+          );
+
+          if (isDuplicate) {
+            clientLogger.info(`[CoreAgentChat] Skipping duplicate message`);
+            return old;
+          }
+
+          animatedMessageIdRef.current = typeof newMessage.id === 'string' ? newMessage.id : null;
+          return [...old, newMessage];
+        }
+      );
+    };
+
+    const handleMessageComplete = (data: any) => {
+      if (data.roomId === roomId) {
+        clientLogger.info(`[CoreAgentChat] Message complete for room ${roomId}`);
+        setMessageProcessing(false);
+      }
+    };
+
+    // Add listener for message broadcasts
+    clientLogger.info('[CoreAgentChat] Adding messageBroadcast listener');
+    const msgHandler = socketIOManager.evtMessageBroadcast.attach((data) => [
+      data as unknown as ContentWithUser,
+    ]);
+    const completeHandler = socketIOManager.evtMessageComplete.attach((data) => [
+      data as unknown as any,
+    ]);
+
+    msgHandler.attach(handleMessageBroadcasting);
+    completeHandler.attach(handleMessageComplete);
+
+    return () => {
+      // When leaving this chat, leave the room but don't disconnect
+      clientLogger.info(`[CoreAgentChat] Leaving room ${roomId}`);
+      socketIOManager.leaveRoom(roomId);
+      msgHandler.detach();
+      completeHandler.detach();
+    };
+  }, [roomId, agentId, entityId, queryClient, socketIOManager, worldId, userId, agentData?.name]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (e.nativeEvent.isComposing) return;
+      handleSendMessage(e as unknown as React.FormEvent<HTMLFormElement>);
+    }
+  };
 
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -224,11 +334,15 @@ export function CoreAgentChat({
       roomId: roomId,
       source: CHAT_SOURCE,
       id: messageId,
+      userId: userId,
     };
+
+    clientLogger.info(`[CoreAgentChat] Adding user message to UI:`, userMessage);
 
     queryClient.setQueryData(
       ['messages', agentId, roomId, worldId],
       (old: ContentWithUser[] = []) => {
+        // Check if exact same message exists already to prevent duplicates
         const exists = old.some(
           (msg) =>
             msg.text === userMessage.text &&
@@ -236,12 +350,16 @@ export function CoreAgentChat({
             Math.abs((msg.createdAt || 0) - userMessage.createdAt) < 1000
         );
 
-        if (exists) return old;
+        if (exists) {
+          clientLogger.info(`[CoreAgentChat] Skipping duplicate user message`);
+          return old;
+        }
+
         return [...old, userMessage];
       }
     );
 
-    socketIOManager.sendMessage(input, roomId, CHAT_SOURCE);
+    socketIOManager.sendMessage(input, roomId, CHAT_SOURCE, { userId });
     setMessageProcessing(true);
     setSelectedFile(null);
     setInput('');
@@ -256,7 +374,9 @@ export function CoreAgentChat({
   };
 
   return (
-    <div className={`flex flex-col w-full h-screen p-4 ${showDetails ? 'col-span-3' : 'col-span-4'}`}>
+    <div
+      className={`flex flex-col w-full h-screen p-4 ${showDetails ? 'col-span-3' : 'col-span-4'}`}
+    >
       {/* Agent Header */}
       <div className="flex items-center justify-between mb-4 p-3 bg-card rounded-lg border">
         <div className="flex items-center gap-3">
@@ -339,8 +459,8 @@ export function CoreAgentChat({
                             isUser
                               ? '/user-icon.png'
                               : agentData?.settings?.avatar
-                              ? agentData?.settings?.avatar
-                              : '/bioicon.png'
+                                ? agentData?.settings?.avatar
+                                : '/bioicon.png'
                           }
                         />
                       </Avatar>
@@ -386,6 +506,7 @@ export function CoreAgentChat({
               ) : null}
               <ChatInput
                 ref={inputRef}
+                onKeyDown={handleKeyDown}
                 value={input}
                 onChange={({ target }) => setInput(target.value)}
                 placeholder="Type your message here..."

@@ -28,6 +28,22 @@ import { sendLevelUpEmailAction } from './actions/send-level-up-email';
 
 // Import services
 import { UserLevelService } from './services/user-level-service';
+import { SupabaseService } from './services/supabase-service';
+
+// Import Discord module
+import { DiscordService } from './discord/service';
+import chatWithAttachments from './discord/actions/chatWithAttachments';
+import downloadMedia from './discord/actions/downloadMedia';
+import summarizeConversation from './discord/actions/summarizeConversation';
+import transcribeMedia from './discord/actions/transcribeMedia';
+
+// Import providers
+import {
+  channelStateProvider,
+  voiceStateProvider,
+  supabaseStateProvider,
+  userStateProvider,
+} from './providers';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -55,6 +71,16 @@ const configSchema = z.object({
       }
       return val;
     }),
+  DISCORD_API_TOKEN: z
+    .string()
+    .min(1, 'Discord API token is not provided')
+    .optional()
+    .transform((val) => {
+      if (!val) {
+        logger.warn('Discord API token is not provided (this is expected)');
+      }
+      return val;
+    }),
 });
 
 /**
@@ -71,7 +97,6 @@ const configSchema = z.object({
  * @property {Function} handler - Asynchronous function to handle the action and generate a response.
  * @property {Object[]} examples - An array of example inputs and expected outputs for the action.
  */
-
 
 export class StarterService extends Service {
   static serviceType = 'starter';
@@ -102,32 +127,41 @@ export class StarterService extends Service {
   }
 }
 
-export const portalPlugin: Plugin = {
-  name: 'plugin-portal',
-  description: 'Portal plugin for elizaOS',
+export const plugin: Plugin = {
+  name: 'portal',
+  description: 'Portal plugin for BioDAO',
   config: {
-    SUPABASE_URL: process.env.VITE_SUPABASE_URL,
-    SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
-    DISCORD_BOT_CLIENT_ID: process.env.VITE_DISCORD_BOT_CLIENT_ID,
-    API_BASE_URL: process.env.VITE_API_BASE_URL,
+    discordApiToken: {
+      type: 'string',
+      description: 'Discord API token',
+      required: true,
+    },
   },
-  async init(config: Record<string, string>) {
-    logger.info('Initializing portal plugin');
-    try {
-      const validatedConfig = await configSchema.parseAsync(config);
+  async init(config: Record<string, string>, runtime: IAgentRuntime): Promise<void> {
+    const token = runtime.getSetting('DISCORD_API_TOKEN') as string;
 
-      // Set all environment variables at once
-      for (const [key, value] of Object.entries(validatedConfig)) {
-        if (value) process.env[key] = value;
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        throw new Error(
-          `Invalid plugin configuration: ${error.errors.map((e) => e.message).join(', ')}`
-        );
-      }
-      throw error;
+    if (!token || token.trim() === '') {
+      logger.warn(
+        'Discord API Token not provided - Discord plugin is loaded but will not be functional'
+      );
+      logger.warn(
+        'To enable Discord functionality, please provide DISCORD_API_TOKEN in your .eliza/.env file'
+      );
     }
+    // Register Discord actions
+    runtime.registerAction(chatWithAttachments);
+    runtime.registerAction(downloadMedia);
+    runtime.registerAction(summarizeConversation);
+    runtime.registerAction(transcribeMedia);
+
+    // Register Discord service
+    runtime.registerService(DiscordService);
+
+    // Register providers
+    runtime.registerProvider(channelStateProvider);
+    runtime.registerProvider(voiceStateProvider);
+    runtime.registerProvider(supabaseStateProvider);
+    runtime.registerProvider(userStateProvider);
   },
   models: {
     [ModelType.TEXT_SMALL]: async (
@@ -211,7 +245,7 @@ export const portalPlugin: Plugin = {
       },
     ],
   },
-  services: [UserLevelService],
+  services: [UserLevelService, SupabaseService, DiscordService],
   actions: [
     checkLevelRequirementsAction,
     fetchUserLevelAction,
@@ -222,8 +256,21 @@ export const portalPlugin: Plugin = {
     checkDiscordMemberCountAction,
     sendEmailAction,
     sendLevelUpEmailAction,
+    // Discord actions
+    chatWithAttachments,
+    downloadMedia,
+    summarizeConversation,
+    transcribeMedia,
   ],
-  providers: [],
+  providers: [
+    // Discord providers
+    channelStateProvider,
+    voiceStateProvider,
+    // Supabase provider
+    supabaseStateProvider,
+    // User state provider
+    userStateProvider,
+  ],
 };
 
-export default portalPlugin;
+export default plugin;

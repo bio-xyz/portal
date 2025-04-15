@@ -45,17 +45,20 @@ export const character: Character = {
     '@elizaos/plugin-pdf',
     '@elizaos/plugin-video-understanding',
     '@elizaos/plugin-bootstrap',
-    '@elizaos/plugin-portal',
   ],
   settings: {
     secrets: {
-      DISCORD_APPLICATION_ID: process.env.COMMUNITY_MANAGER_DISCORD_APPLICATION_ID,
-      DISCORD_API_TOKEN: process.env.COMMUNITY_MANAGER_DISCORD_API_TOKEN,
-      SUPABASE_URL: process.env.VITE_SUPABASE_URL,
-      SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY,
-      RESEND_API_KEY: process.env.RESEND_API_KEY,
-      PRIVY_APP_ID: process.env.PRIVY_APP_ID,
-      PRIVY_SECRET: process.env.PRIVY_SECRET,
+      ...(process.env.DISCORD_API_TOKEN
+        ? { DISCORD_API_TOKEN: process.env.DISCORD_API_TOKEN }
+        : {}),
+      ...(process.env.VITE_SUPABASE_URL ? { SUPABASE_URL: process.env.VITE_SUPABASE_URL } : {}),
+      ...(process.env.VITE_SUPABASE_ANON_KEY
+        ? { SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY }
+        : {}),
+      ...(process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+        ? { SUPABASE_SERVICE_ROLE_KEY: process.env.VITE_SUPABASE_SERVICE_ROLE_KEY }
+        : {}),
+      ...(process.env.RESEND_API_KEY ? { RESEND_API_KEY: process.env.RESEND_API_KEY } : {}),
     },
     avatar,
   },

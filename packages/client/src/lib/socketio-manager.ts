@@ -120,8 +120,10 @@ class SocketIOManager extends EventAdapter {
   /**
    * Initialize the Socket.io connection to the server
    * @param entityId The client entity ID
+   * @param agentIds Array of agent IDs to connect to
+   * @param options Additional options including userId
    */
-  public initialize(entityId: string, agentIds: string[]): void {
+  public initialize(entityId: string, agentIds: string[], options?: { userId?: string }): void {
     this.entityId = entityId;
     this.agentIds = agentIds;
 
@@ -136,6 +138,9 @@ class SocketIOManager extends EventAdapter {
     this.socket = io(fullURL, {
       autoConnect: true,
       reconnection: true,
+      auth: {
+        userId: options?.userId,
+      },
     });
 
     // Set up connection promise for async operations that depend on connection
@@ -237,8 +242,9 @@ class SocketIOManager extends EventAdapter {
   /**
    * Join a room to receive messages from it
    * @param roomId Room/Agent ID to join
+   * @param options Additional options including userId
    */
-  public async joinRoom(roomId: string): Promise<void> {
+  public async joinRoom(roomId: string, options?: { userId?: string }): Promise<void> {
     if (!this.socket) {
       clientLogger.error('[SocketIO] Cannot join room: socket not initialized');
       return;
@@ -256,6 +262,7 @@ class SocketIOManager extends EventAdapter {
         roomId,
         entityId: this.entityId,
         agentIds: this.agentIds,
+        userId: options?.userId,
       },
     });
 
@@ -281,8 +288,14 @@ class SocketIOManager extends EventAdapter {
    * @param message Message text to send
    * @param roomId Room/Agent ID to send the message to
    * @param source Source identifier (e.g., 'client_chat')
+   * @param options Additional options including userId
    */
-  public async sendMessage(message: string, roomId: string, source: string): Promise<void> {
+  public async sendMessage(
+    message: string,
+    roomId: string,
+    source: string,
+    options?: { userId?: string }
+  ): Promise<void> {
     if (!this.socket) {
       clientLogger.error('[SocketIO] Cannot send message: socket not initialized');
       return;
@@ -309,6 +322,7 @@ class SocketIOManager extends EventAdapter {
         worldId,
         messageId,
         source,
+        userId: options?.userId,
       },
     });
 
@@ -321,6 +335,7 @@ class SocketIOManager extends EventAdapter {
       createdAt: Date.now(),
       source,
       name: USER_NAME, // Required for ContentWithUser compatibility
+      userId: options?.userId,
     });
   }
 
