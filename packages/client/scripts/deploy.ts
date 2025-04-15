@@ -15,7 +15,7 @@ import {
 
 // ---- SETUP ----
 
-const PRIVATE_KEY = '0xd116709d35414adcaaca1910ab67feb11b6a367030367006df9367fac32b4e29' as `0x${string}`; // Make sure this is set in your .env file
+const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
 const DEPLOYED_CONTRACT_ADDRESS = '0x1560aEc2263d8979F24Aa0a260bF11f55E458473' as const; // Use the deployed address
 
 const chain = baseSepolia;
