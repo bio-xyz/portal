@@ -14,7 +14,7 @@ import { WorldManager } from '@/lib/world-manager';
 import type { Agent, Content, UUID } from '@elizaos/core';
 import { AgentStatus } from '@elizaos/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { PanelRight, Paperclip, Send, X } from 'lucide-react';
+import { PanelRight, Paperclip, Send, X, Loader2 } from 'lucide-react';
 import AIWriter from 'react-aiwriter';
 import { AudioRecorder } from '../audio-recorder';
 import CopyButton from '../copy-button';
@@ -26,8 +26,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { CHAT_SOURCE } from '@/constants';
 import clientLogger from '@/lib/logger';
 import { useAuth } from '@/lib/use-auth';
+import { useWallets, type ConnectedWallet } from '@privy-io/react-auth';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { ChevronRight } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { mintIdeaAndVisionNFTs } from '@/lib/nft-actions';
+import { baseSepolia } from 'viem/chains';
+import type { Hex } from 'viem';
+import { useUserLevel } from '@/hooks/use-user-level';
+
+const LEVELS = {
+  1: { label: "App Started", requirements: ["Wallet connected"] },
+  2: { label: "Science NFTs Minted", requirements: ["Minted Idea NFT", "Minted Hypothesis NFT"] },
+  3: { label: "Community Initiated", requirements: ["Discord created", "4 Discord members"] },
+  4: { label: "Community Growth + Proof", requirements: ["10 Discord members", "25 papers shared", "100 messages sent"] },
+};
 
 interface IAttachment {
   url: string;
@@ -51,6 +64,7 @@ interface CoreAgentChatProps {
   agentData: Agent;
   showDetails: boolean;
   toggleDetails: () => void;
+  initialMessage?: string;
 }
 
 const MemoizedMessageContent = React.memo(MessageContent);
@@ -160,11 +174,17 @@ export function CoreAgentChat({
   agentData,
   showDetails,
   toggleDetails,
+  initialMessage,
 }: CoreAgentChatProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [input, setInput] = useState('');
   const [messageProcessing, setMessageProcessing] = useState<boolean>(false);
+  const [isMinting, setIsMinting] = useState<boolean>(false);
+  const [mintingAttempted, setMintingAttempted] = useState<boolean>(false);
   const { user } = useAuth();
+  const { wallets } = useWallets();
+  const { toast } = useToast();
+  const { level, isLoading: levelLoading } = useUserLevel();
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -183,7 +203,6 @@ export function CoreAgentChat({
     smooth: true,
   });
 
-  // Use a stable ID for refs to avoid excessive updates
   const scrollRefId = useRef(`scroll-${Math.random().toString(36).substring(2, 9)}`).current;
 
   const prevMessageCountRef = useRef(0);
@@ -212,20 +231,110 @@ export function CoreAgentChat({
     }
   }, []);
 
+  const addAgentMessage = useCallback((text: string) => {
+    const agentMessage: ContentWithUser = {
+      id: uuidv4(),
+      text: text,
+      name: agentData?.name || 'Agent',
+      senderId: agentId,
+      senderName: agentData?.name || 'Agent',
+      roomId: roomId,
+      createdAt: Date.now(),
+      isLoading: false,
+      source: CHAT_SOURCE,
+      userId: userId,
+    };
+
+    clientLogger.info('[CoreAgentChat] Adding agent message to UI:', agentMessage);
+
+    queryClient.setQueryData(
+      ['messages', agentId, roomId, worldId],
+      (old: ContentWithUser[] = []) => {
+        if (old.some(msg => msg.id === agentMessage.id)) return old;
+        animatedMessageIdRef.current = agentMessage.id as string;
+        return [...old, agentMessage];
+      }
+    );
+  }, [agentId, agentData?.name, roomId, userId, queryClient, worldId]);
+
+  const triggerMintingProcess = useCallback(async () => {
+    if (isMinting) {
+      console.warn('[triggerMintingProcess] Minting already in progress.');
+      return;
+    }
+
+    const embeddedWallet = wallets.find((wallet: ConnectedWallet) => wallet.walletClientType === 'privy');
+
+    if (!embeddedWallet) {
+      const errorMsg = 'Your embedded wallet could not be found. Please try logging out and back in.';
+      toast({ title: 'Wallet Not Found', description: errorMsg, variant: 'destructive' });
+      addAgentMessage(`Minting failed: ${errorMsg}`);
+      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_failure', error: 'Embedded wallet not found' }), roomId, CHAT_SOURCE, { userId });
+      return;
+    }
+
+    const expectedChainId = `eip155:${baseSepolia.id}`;
+    if (embeddedWallet.chainId !== expectedChainId) {
+      const errorMsg = `Please ensure your wallet is connected to Base Sepolia (Expected: ${expectedChainId}, Found: ${embeddedWallet.chainId}). You may need to switch it via the wallet UI or reconnect.`;
+      toast({ title: 'Incorrect Network', description: errorMsg, variant: 'destructive', duration: 7000 });
+      addAgentMessage(`Minting failed: ${errorMsg}`);
+      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_failure', error: `Wallet on wrong chain: ${embeddedWallet.chainId}` }), roomId, CHAT_SOURCE, { userId });
+      return;
+    }
+
+    setIsMinting(true);
+    addAgentMessage("Minting your Idea and Vision NFTs now...");
+
+    try {
+      console.log('[triggerMintingProcess] Calling mintIdeaAndVisionNFTs...');
+      const { ideaNftHash, visionNftHash } = await mintIdeaAndVisionNFTs(embeddedWallet);
+      console.log('[triggerMintingProcess] Minting successful:', { ideaNftHash, visionNftHash });
+
+      toast({ title: 'NFTs Minted Successfully!', variant: 'default', duration: 5000 });
+
+      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_success', data: { ideaNftHash, visionNftHash } }), roomId, CHAT_SOURCE, { userId });
+
+      const nextLevelInfo = LEVELS[3];
+      const requirementsText = nextLevelInfo.requirements.join(', ');
+      addAgentMessage(`NFTs minted successfully! You are now Level 2: ${LEVELS[2].label}.
+Next step (Level 3): ${nextLevelInfo.label}.
+Requirements: ${requirementsText}.`);
+    } catch (error: any) {
+      const errorMsg = error.message || 'An unknown error occurred during minting.';
+      console.error('[triggerMintingProcess] Minting failed:', error);
+      toast({ title: 'NFT Minting Failed', description: errorMsg, variant: 'destructive', duration: 7000 });
+
+      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_failure', error: errorMsg }), roomId, CHAT_SOURCE, { userId });
+
+      addAgentMessage(`There was an issue minting your NFTs: ${errorMsg} Please try again later or contact support.`);
+    } finally {
+      setIsMinting(false);
+    }
+  }, [isMinting, wallets, toast, socketIOManager, roomId, userId, addAgentMessage]);
+
   useEffect(() => {
-    // Initialize Socket.io connection with user ID
+    const embeddedWallet = wallets.find((wallet: ConnectedWallet) => wallet.walletClientType === 'privy');
+
+    if (!levelLoading && level === 1 && !isMinting && !mintingAttempted && embeddedWallet) {
+      console.log('[CoreAgentChat] Conditions met for automatic minting (Level 1 detected).');
+      setMintingAttempted(true);
+      setTimeout(() => {
+        triggerMintingProcess();
+      }, 500);
+    }
+  }, [level, levelLoading, wallets, isMinting, mintingAttempted, triggerMintingProcess]);
+
+  useEffect(() => {
     socketIOManager.initialize(entityId, [agentId], { userId });
 
-    // Join room after initialization
     const joinRoom = async () => {
       try {
         await socketIOManager.joinRoom(roomId, { userId });
         clientLogger.info(`[CoreAgentChat] Joined room ${roomId} with agent ${agentId}`);
 
-        // Send initial greeting message to activate the agent
-        if (agentData?.name) {
-          const greeting = `Hello, I'm ${agentData.name}. How can I assist you with your project today?`;
-          socketIOManager.sendMessage(greeting, roomId, CHAT_SOURCE, { userId });
+        if (initialMessage && messages.length === 0) {
+          socketIOManager.sendMessage(initialMessage, roomId, CHAT_SOURCE, { userId });
+          clientLogger.info(`[CoreAgentChat] Sent initial message: "${initialMessage}"`);
         }
       } catch (error) {
         clientLogger.error(`[CoreAgentChat] Failed to join room ${roomId}:`, error);
@@ -234,13 +343,11 @@ export function CoreAgentChat({
     joinRoom();
 
     const handleMessageBroadcasting = (data: ContentWithUser) => {
-      // Skip messages that don't have required content
       if (!data) {
         clientLogger.warn('[CoreAgentChat] Received empty or invalid message data:', data);
         return;
       }
 
-      // Skip messages not for this room
       if (data.roomId !== roomId) {
         clientLogger.info(
           `[CoreAgentChat] Ignoring message for different room: ${data.roomId}, we're in ${roomId}`
@@ -265,12 +372,11 @@ export function CoreAgentChat({
         ['messages', agentId, roomId, worldId],
         (old: ContentWithUser[] = []) => {
           clientLogger.info(`[CoreAgentChat] Current messages:`, old?.length || 0);
-          // Check if this message is already in the list (avoid duplicates)
           const isDuplicate = old.some(
             (msg) =>
               msg.text === newMessage.text &&
               msg.name === newMessage.name &&
-              Math.abs((msg.createdAt || 0) - (newMessage.createdAt || 0)) < 5000 // Within 5 seconds
+              Math.abs((msg.createdAt || 0) - (newMessage.createdAt || 0)) < 5000
           );
 
           if (isDuplicate) {
@@ -291,26 +397,20 @@ export function CoreAgentChat({
       }
     };
 
-    // Add listener for message broadcasts
-    clientLogger.info('[CoreAgentChat] Adding messageBroadcast listener');
-    const msgHandler = socketIOManager.evtMessageBroadcast.attach((data) => [
-      data as unknown as ContentWithUser,
-    ]);
-    const completeHandler = socketIOManager.evtMessageComplete.attach((data) => [
-      data as unknown as any,
-    ]);
+    clientLogger.info('[CoreAgentChat] Adding message listeners');
+    const msgHandler = socketIOManager.evtMessageBroadcast.attach((data) => [data as unknown as ContentWithUser]);
+    const completeHandler = socketIOManager.evtMessageComplete.attach((data) => [data as unknown as any]);
 
     msgHandler.attach(handleMessageBroadcasting);
     completeHandler.attach(handleMessageComplete);
 
     return () => {
-      // When leaving this chat, leave the room but don't disconnect
       clientLogger.info(`[CoreAgentChat] Leaving room ${roomId}`);
       socketIOManager.leaveRoom(roomId);
       msgHandler.detach();
       completeHandler.detach();
     };
-  }, [roomId, agentId, entityId, queryClient, socketIOManager, worldId, userId, agentData?.name]);
+  }, [roomId, agentId, entityId, queryClient, socketIOManager, worldId, userId, initialMessage, messages.length]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -322,7 +422,7 @@ export function CoreAgentChat({
 
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input || messageProcessing) return;
+    if (!input || messageProcessing || isMinting) return;
 
     const messageId = uuidv4();
     const userMessage: ContentWithUser = {
@@ -342,7 +442,6 @@ export function CoreAgentChat({
     queryClient.setQueryData(
       ['messages', agentId, roomId, worldId],
       (old: ContentWithUser[] = []) => {
-        // Check if exact same message exists already to prevent duplicates
         const exists = old.some(
           (msg) =>
             msg.text === userMessage.text &&
@@ -377,7 +476,6 @@ export function CoreAgentChat({
     <div
       className={`flex flex-col w-full h-screen p-4 ${showDetails ? 'col-span-3' : 'col-span-4'}`}
     >
-      {/* Agent Header */}
       <div className="flex items-center justify-between mb-4 p-3 bg-card rounded-lg border">
         <div className="flex items-center gap-3">
           <Avatar className="size-10 border rounded-full">
@@ -509,8 +607,9 @@ export function CoreAgentChat({
                 onKeyDown={handleKeyDown}
                 value={input}
                 onChange={({ target }) => setInput(target.value)}
-                placeholder="Type your message here..."
+                placeholder={isMinting ? 'Minting in progress...' : 'Type your message here...'}
                 className="min-h-12 resize-none rounded-md bg-card border-0 p-3 shadow-none focus-visible:ring-0"
+                disabled={isMinting || messageProcessing}
               />
               <div className="flex items-center p-3 pt-0">
                 <Tooltip>
@@ -524,6 +623,7 @@ export function CoreAgentChat({
                             fileInputRef.current.click();
                           }
                         }}
+                        disabled={isMinting || messageProcessing}
                       >
                         <Paperclip className="size-4" />
                         <span className="sr-only">Attach file</span>
@@ -546,13 +646,14 @@ export function CoreAgentChat({
                   onChange={(newInput: string) => setInput(newInput)}
                 />
                 <Button
-                  disabled={messageProcessing}
+                  disabled={messageProcessing || isMinting}
                   type="submit"
                   size="sm"
                   className="ml-auto gap-1.5 h-[30px]"
                 >
-                  {messageProcessing ? (
+                  {messageProcessing || isMinting ? (
                     <div className="flex gap-0.5 items-center justify-center">
+                      {isMinting && <Loader2 className="size-3.5 mr-1 animate-spin" />}
                       <span className="w-[4px] h-[4px] bg-gray-500 rounded-full animate-bounce [animation-delay:0s]" />
                       <span className="w-[4px] h-[4px] bg-gray-500 rounded-full animate-bounce [animation-delay:0.2s]" />
                       <span className="w-[4px] h-[4px] bg-gray-500 rounded-full animate-bounce [animation-delay:0.4s]" />

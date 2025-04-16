@@ -50,7 +50,7 @@ export interface UserProgress {
 export interface NFTMetadata {
   id: string;
   user_id: string;
-  project_id: string;
+  profile_id: string;
   token_id: string;
   contract_address: string;
   metadata_uri: string;

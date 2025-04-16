@@ -19,7 +19,7 @@ export const fetchUserLevelAction: Action = {
 
   validate: async (runtime: IAgentRuntime, message: Memory, state: State): Promise<boolean> => {
     // Check if we have a user ID in the message or state
-    const userId = message.content.userId || message.content.user_id || state.values?.userId;
+    const userId = message.content.userId || message.content.user_id || state?.data?.userId;
     if (!userId) {
       logger.warn('[FETCH_USER_LEVEL] No user ID provided for FETCH_USER_LEVEL action');
       logger.info(`[FETCH_USER_LEVEL] Message content: ${JSON.stringify(message.content)}`);
@@ -42,7 +42,7 @@ export const fetchUserLevelAction: Action = {
       logger.info('[FETCH_USER_LEVEL] Handling FETCH_USER_LEVEL action');
 
       // Get the user ID from the message or state
-      const userId = message.content.userId || message.content.user_id || state.values?.userId;
+      const userId = message.content.userId || message.content.user_id || state?.data?.userId;
 
       if (!userId || typeof userId !== 'string') {
         logger.error(`[FETCH_USER_LEVEL] Invalid user ID: ${userId}`);
@@ -58,8 +58,10 @@ export const fetchUserLevelAction: Action = {
         throw new Error('User level service not found');
       }
 
-      // Fetch the user level
-      const level = await userLevelService.getUserLevel(userId);
+      // Fetch the user level object
+      const userLevelData = await userLevelService.getUserLevel(userId);
+      // Extract the numeric level value, or null if not found
+      const level = userLevelData ? userLevelData.level : null;
       logger.info(`[FETCH_USER_LEVEL] User level retrieved: ${level}`);
 
       // Create the response content

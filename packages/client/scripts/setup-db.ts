@@ -115,16 +115,17 @@ async function setupDatabase() {
     const requirementsProgressSchemaSql = `
       CREATE TABLE IF NOT EXISTS requirement_progress (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id TEXT NOT NULL,
+        privy_id TEXT NOT NULL,
         level INTEGER NOT NULL,
         requirement TEXT NOT NULL,
         completed BOOLEAN NOT NULL DEFAULT false,
         completed_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(user_id, level, requirement)
+        UNIQUE(privy_id, level, requirement)
       );
-      CREATE INDEX IF NOT EXISTS idx_requirement_progress_user_id ON requirement_progress(user_id);
+      DROP INDEX IF EXISTS idx_requirement_progress_user_id;
+      CREATE INDEX IF NOT EXISTS idx_requirement_progress_privy_id ON requirement_progress(privy_id);
       CREATE INDEX IF NOT EXISTS idx_requirement_progress_level ON requirement_progress(level);
       CREATE INDEX IF NOT EXISTS idx_requirement_progress_completed ON requirement_progress(completed);
       DROP TRIGGER IF EXISTS update_requirement_progress_updated_at ON requirement_progress;
@@ -204,17 +205,17 @@ async function setupDatabase() {
       DROP POLICY IF EXISTS "Users can read their own requirements" ON requirement_progress;
       CREATE POLICY "Users can read their own requirements"
       ON requirement_progress FOR SELECT
-      USING ((request.jwt.claims ->> 'privy_id')::text = user_id);
+      USING (auth.uid() = privy_id);
       
       DROP POLICY IF EXISTS "Users can insert their own requirements" ON requirement_progress;
       CREATE POLICY "Users can insert their own requirements"
       ON requirement_progress FOR INSERT
-      WITH CHECK ((request.jwt.claims ->> 'privy_id')::text = user_id);
+      WITH CHECK (auth.uid() = privy_id);
       
       DROP POLICY IF EXISTS "Users can update their own requirements" ON requirement_progress;
       CREATE POLICY "Users can update their own requirements"
       ON requirement_progress FOR UPDATE
-      USING ((request.jwt.claims ->> 'privy_id')::text = user_id);
+      USING (auth.uid() = privy_id);
       
       DROP POLICY IF EXISTS "Service role can manage requirements" ON requirement_progress;
       CREATE POLICY "Service role can manage requirements"
@@ -282,7 +283,7 @@ async function setupDatabase() {
       CREATE TABLE IF NOT EXISTS nft_metadata (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         privy_id TEXT NOT NULL,
-        project_id UUID NOT NULL, -- Assuming this links to a project table ID (not profile ID)
+        profile_id UUID NOT NULL, 
         token_id TEXT NOT NULL,
         contract_address TEXT NOT NULL,
         metadata_uri TEXT NOT NULL,
@@ -296,7 +297,7 @@ async function setupDatabase() {
       );
       DROP INDEX IF EXISTS idx_nft_metadata_user_id;
       CREATE INDEX IF NOT EXISTS idx_nft_metadata_privy_id ON nft_metadata(privy_id);
-      CREATE INDEX IF NOT EXISTS idx_nft_metadata_project_id ON nft_metadata(project_id);
+      CREATE INDEX IF NOT EXISTS idx_nft_metadata_profile_id ON nft_metadata(profile_id);
       CREATE INDEX IF NOT EXISTS idx_nft_metadata_premint_uid ON nft_metadata(premint_uid);
       DROP TRIGGER IF EXISTS update_nft_metadata_updated_at ON nft_metadata;
       CREATE TRIGGER update_nft_metadata_updated_at
@@ -321,6 +322,29 @@ async function setupDatabase() {
       USING ((request.jwt.claims ->> 'privy_id')::text = privy_id);
       GRANT ALL ON nft_metadata TO authenticated;
       GRANT ALL ON nft_metadata TO service_role;
+    `;
+
+    // *** NEW: User Discord Info - Schema ***
+    const userDiscordInfoSchemaSql = `
+      CREATE TABLE IF NOT EXISTS user_discord_info (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        privy_id TEXT NOT NULL UNIQUE,
+        server_id TEXT NOT NULL, 
+        invite_link TEXT NOT NULL,
+        bot_invited BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        CONSTRAINT fk_privy_id
+          FOREIGN KEY(privy_id)
+          REFERENCES profiles(privy_id)
+          ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_discord_info_privy_id ON user_discord_info(privy_id);
+      DROP TRIGGER IF EXISTS update_user_discord_info_updated_at ON user_discord_info;
+      CREATE TRIGGER update_user_discord_info_updated_at
+      BEFORE UPDATE ON user_discord_info
+      FOR EACH ROW
+      EXECUTE PROCEDURE update_updated_at_column();
     `;
 
     // Helper Functions & View - Schema
@@ -469,7 +493,7 @@ async function setupDatabase() {
           completed_count,
           total_count
         FROM requirement_progress
-        WHERE user_id = p_privy_id
+        WHERE privy_id = p_privy_id
         AND level = p_level;
         
         -- Get completed requirements
@@ -480,7 +504,7 @@ async function setupDatabase() {
         ))
         INTO completed_requirements
         FROM requirement_progress
-        WHERE user_id = p_privy_id
+        WHERE privy_id = p_privy_id
         AND level = p_level
         AND completed = true;
         
@@ -492,7 +516,7 @@ async function setupDatabase() {
         ))
         INTO missing_requirements
         FROM requirement_progress
-        WHERE user_id = p_privy_id
+        WHERE privy_id = p_privy_id
         AND level = p_level
         AND completed = false;
         
@@ -603,7 +627,7 @@ async function setupDatabase() {
         -- Check if the requirement exists for the user
         SELECT to_jsonb(rp) INTO existing_record
         FROM requirement_progress rp
-        WHERE rp.user_id = p_privy_id
+        WHERE rp.privy_id = p_privy_id
         AND rp.level = p_level
         AND rp.requirement = p_requirement;
         
@@ -614,14 +638,14 @@ async function setupDatabase() {
             completed = p_completed,
             completed_at = CASE WHEN p_completed THEN NOW() ELSE NULL END,
             updated_at = NOW()
-          WHERE user_id = p_privy_id
+          WHERE privy_id = p_privy_id
           AND level = p_level
           AND requirement = p_requirement
           RETURNING to_jsonb(requirement_progress.*) INTO inserted_record;
         ELSE
           -- Insert new record
           INSERT INTO requirement_progress (
-            user_id,
+            privy_id,
             level,
             requirement,
             completed,
@@ -740,7 +764,7 @@ async function setupDatabase() {
     `;
 
     // After other SQL definitions, add a new SQL function to verify RLS status
-    const verifyRlsSetupSql = `
+    let verifyRlsSetupSql = `
       -- Create a function to check RLS status on tables
       CREATE OR REPLACE FUNCTION check_rls_status()
       RETURNS jsonb LANGUAGE plpgsql AS $$
@@ -751,59 +775,31 @@ async function setupDatabase() {
           'profiles_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'profiles'),
           'user_levels_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'user_levels'),
           'level_requirements_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'level_requirements'),
+          'user_discord_info_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'user_discord_info'),
           'profiles_rls_enabled', EXISTS(
             SELECT 1 FROM pg_tables 
-            WHERE schemaname = 'public' 
-            AND tablename = 'profiles' 
-            AND rowsecurity = true
+            WHERE schemaname = 'public' AND tablename = 'profiles' AND rowsecurity = true
           ),
           'user_levels_rls_enabled', EXISTS(
             SELECT 1 FROM pg_tables 
-            WHERE schemaname = 'public' 
-            AND tablename = 'user_levels' 
-            AND rowsecurity = true
+            WHERE schemaname = 'public' AND tablename = 'user_levels' AND rowsecurity = true
           ),
           'level_requirements_rls_enabled', EXISTS(
             SELECT 1 FROM pg_tables 
-            WHERE schemaname = 'public' 
-            AND tablename = 'level_requirements' 
-            AND rowsecurity = true
+            WHERE schemaname = 'public' AND tablename = 'level_requirements' AND rowsecurity = true
+          ),
+          'user_discord_info_rls_enabled', EXISTS(
+            SELECT 1 FROM pg_tables 
+            WHERE schemaname = 'public' AND tablename = 'user_discord_info' AND rowsecurity = true
           ),
           'auth_uid_function_exists', EXISTS(
             SELECT 1 FROM pg_proc 
-            WHERE proname = 'uid' 
-            AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'auth')
+            WHERE proname = 'uid' AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'auth')
           ),
-          'profiles_policies', (
-            SELECT jsonb_agg(jsonb_build_object(
-              'name', polname,
-              'cmd', polcmd,
-              'qual', pg_get_expr(polqual, polrelid, true),
-              'with_check', pg_get_expr(polwithcheck, polrelid, true)
-            ))
-            FROM pg_policy
-            WHERE polrelid = 'public.profiles'::regclass
-          ),
-          'user_levels_policies', (
-             SELECT jsonb_agg(jsonb_build_object(
-              'name', polname,
-              'cmd', polcmd,
-              'qual', pg_get_expr(polqual, polrelid, true),
-              'with_check', pg_get_expr(polwithcheck, polrelid, true)
-            ))
-            FROM pg_policy
-            WHERE polrelid = 'public.user_levels'::regclass
-          ),
-          'level_requirements_policies', (
-             SELECT jsonb_agg(jsonb_build_object(
-              'name', polname,
-              'cmd', polcmd,
-              'qual', pg_get_expr(polqual, polrelid, true),
-              'with_check', pg_get_expr(polwithcheck, polrelid, true)
-            ))
-            FROM pg_policy
-            WHERE polrelid = 'public.level_requirements'::regclass
-          )
+          'profiles_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.profiles'::regclass),
+          'user_levels_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.user_levels'::regclass),
+          'level_requirements_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.level_requirements'::regclass),
+          'user_discord_info_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.user_discord_info'::regclass)
         ) INTO result;
         
         RETURN result;
@@ -883,6 +879,10 @@ async function setupDatabase() {
       {
         name: 'Enable RLS on level_requirements',
         sql: 'ALTER TABLE level_requirements ENABLE ROW LEVEL SECURITY;',
+      },
+      {
+        name: 'Enable RLS on user_discord_info',
+        sql: 'ALTER TABLE user_discord_info ENABLE ROW LEVEL SECURITY;',
       },
     ];
 
@@ -992,7 +992,7 @@ async function setupDatabase() {
           DROP POLICY IF EXISTS "Users can read their own requirements" ON requirement_progress;
           CREATE POLICY "Users can read their own requirements"
           ON requirement_progress FOR SELECT
-          USING (auth.uid() = user_id);
+          USING (auth.uid() = privy_id);
         `,
       },
       {
@@ -1001,7 +1001,7 @@ async function setupDatabase() {
           DROP POLICY IF EXISTS "Users can insert their own requirements" ON requirement_progress;
           CREATE POLICY "Users can insert their own requirements"
           ON requirement_progress FOR INSERT
-          WITH CHECK (auth.uid() = user_id);
+          WITH CHECK (auth.uid() = privy_id);
         `,
       },
       {
@@ -1010,7 +1010,7 @@ async function setupDatabase() {
           DROP POLICY IF EXISTS "Users can update their own requirements" ON requirement_progress;
           CREATE POLICY "Users can update their own requirements"
           ON requirement_progress FOR UPDATE
-          USING (auth.uid() = user_id);
+          USING (auth.uid() = privy_id);
         `,
       },
       {
@@ -1041,6 +1041,46 @@ async function setupDatabase() {
           DROP POLICY IF EXISTS "Service role can manage level requirements" ON level_requirements;
           CREATE POLICY "Service role can manage level requirements"
           ON level_requirements FOR ALL
+          USING (current_setting('role', true) = 'service_role');
+        `,
+      },
+    ];
+
+    // User Discord Info RLS policies
+    const userDiscordInfoPoliciesStmts = [
+      {
+        name: 'User Discord Info SELECT policy',
+        sql: `
+          DROP POLICY IF EXISTS "Users can read their own discord info" ON user_discord_info;
+          CREATE POLICY "Users can read their own discord info"
+          ON user_discord_info FOR SELECT
+          USING (auth.uid() = privy_id);
+        `,
+      },
+      {
+        name: 'User Discord Info INSERT policy',
+        sql: `
+          DROP POLICY IF EXISTS "Users can insert their own discord info" ON user_discord_info;
+          CREATE POLICY "Users can insert their own discord info"
+          ON user_discord_info FOR INSERT
+          WITH CHECK (privy_id IS NOT NULL AND auth.uid() = privy_id);
+        `,
+      },
+      {
+        name: 'User Discord Info UPDATE policy',
+        sql: `
+          DROP POLICY IF EXISTS "Users can update their own discord info" ON user_discord_info;
+          CREATE POLICY "Users can update their own discord info"
+          ON user_discord_info FOR UPDATE
+          USING (auth.uid() = privy_id);
+        `,
+      },
+      {
+        name: 'User Discord Info Service Role policy',
+        sql: `
+          DROP POLICY IF EXISTS "Service role can manage discord info" ON user_discord_info;
+          CREATE POLICY "Service role can manage discord info"
+          ON user_discord_info FOR ALL
           USING (current_setting('role', true) = 'service_role');
         `,
       },
@@ -1083,6 +1123,13 @@ async function setupDatabase() {
           GRANT ALL ON level_requirements TO service_role;
         `,
       },
+      {
+        name: 'Grant user_discord_info permissions',
+        sql: `
+          GRANT SELECT, INSERT, UPDATE ON user_discord_info TO authenticated;
+          GRANT ALL ON user_discord_info TO service_role;
+        `,
+      },
     ];
 
     // --- Group Statements ---
@@ -1094,6 +1141,7 @@ async function setupDatabase() {
       { name: 'Onboarding Schema SQL', sql: onboardingSchemaSql },
       { name: 'Auth Cleanup SQL', sql: authCleanupSql },
       { name: 'NFT Schema SQL', sql: nftSchemaSql },
+      { name: 'User Discord Info Schema SQL', sql: userDiscordInfoSchemaSql },
       { name: 'Functions Schema SQL', sql: functionsSchemaSql },
       { name: 'Level Requirements Helper SQL', sql: levelRequirementsHelperSql },
       { name: 'Mark Requirement Completed SQL', sql: markRequirementCompletedSql },
@@ -1109,6 +1157,7 @@ async function setupDatabase() {
       ...nftPoliciesStmts,
       ...requirementProgressPoliciesStmts,
       ...levelRequirementsPoliciesStmts,
+      ...userDiscordInfoPoliciesStmts,
       ...grantStmts,
     ];
 
@@ -1260,6 +1309,9 @@ async function setupDatabase() {
           `   Level requirements table exists: ${statusCheck.level_requirements_table_exists ? 'Yes ✓' : 'No ❌'}`
         );
         console.log(
+          `   User Discord Info table exists: ${statusCheck.user_discord_info_table_exists ? 'Yes ✓' : 'No ❌'}`
+        );
+        console.log(
           `   Profiles RLS enabled: ${statusCheck.profiles_rls_enabled ? 'Yes ✓' : 'No ❌'}`
         );
         console.log(
@@ -1269,6 +1321,9 @@ async function setupDatabase() {
           `   Level requirements RLS enabled: ${statusCheck.level_requirements_rls_enabled ? 'Yes ✓' : 'No ❌'}`
         );
         console.log(
+          `   User Discord Info RLS enabled: ${statusCheck.user_discord_info_rls_enabled ? 'Yes ✓' : 'No ❌'}`
+        );
+        console.log(
           `   auth.uid() function exists: ${statusCheck.auth_uid_function_exists ? 'Yes ✓' : 'No ❌'}`
         );
 
@@ -1276,6 +1331,7 @@ async function setupDatabase() {
         const profilePolicies = statusCheck.profiles_policies || [];
         const userLevelsPolicies = statusCheck.user_levels_policies || [];
         const levelRequirementsPolicies = statusCheck.level_requirements_policies || [];
+        const userDiscordInfoPolicies = statusCheck.user_discord_info_policies || [];
 
         console.log(
           `   Profiles has ${profilePolicies.length} policies: ${profilePolicies.length >= 3 ? 'Good ✓' : 'Not enough ❌'}`
@@ -1286,20 +1342,26 @@ async function setupDatabase() {
         console.log(
           `   Level requirements has ${levelRequirementsPolicies.length} policies: ${levelRequirementsPolicies.length >= 2 ? 'Good ✓' : 'Not enough ❌'}`
         );
+        console.log(
+          `   User Discord Info has ${userDiscordInfoPolicies.length} policies: ${userDiscordInfoPolicies.length >= 4 ? 'Good ✓' : 'Not enough ❌'}`
+        );
 
         // Determine overall status
         const hasAllTables =
           statusCheck.profiles_table_exists &&
           statusCheck.user_levels_table_exists &&
-          statusCheck.level_requirements_table_exists;
+          statusCheck.level_requirements_table_exists &&
+          statusCheck.user_discord_info_table_exists;
         const hasRlsEnabled =
           statusCheck.profiles_rls_enabled &&
           statusCheck.user_levels_rls_enabled &&
-          statusCheck.level_requirements_rls_enabled;
+          statusCheck.level_requirements_rls_enabled &&
+          statusCheck.user_discord_info_rls_enabled;
         const hasEnoughPolicies =
           profilePolicies.length >= 3 &&
-          userLevelsPolicies.length >= 3 &&
-          levelRequirementsPolicies.length >= 2;
+          userLevelsPolicies.length >= 4 &&
+          levelRequirementsPolicies.length >= 2 &&
+          userDiscordInfoPolicies.length >= 4;
         const hasAuthFunction = statusCheck.auth_uid_function_exists;
 
         if (hasAllTables && hasRlsEnabled && hasEnoughPolicies && hasAuthFunction) {

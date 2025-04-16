@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import { useAgents } from '@/hooks/use-query-hooks';
 import { LogIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/lib/use-auth';
-import { createOnboardingProfile } from '@/lib/onboarding';
+import { createOnboardingProfile, getOnboardingProfile } from '@/lib/onboarding';
 import { createOrUpdateUserLevel } from '@/lib/user-level';
 import { formSchema, formPages, type WelcomeFormValues } from '@/lib/onboarding-content';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -28,6 +28,24 @@ export function WelcomeForm() {
   const { submitForm } = useWelcomeForm();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const getProfile = async () => {
+      if (user?.id) {
+        try {
+          const profile = await getOnboardingProfile(user?.id);
+          if (profile) {
+            navigate("/dashboard");
+          }
+        } catch (error) {
+          console.log("No existing profile found or error fetching profile:", error);
+          // Continue with onboarding flow if profile doesn't exist
+        }
+      }
+    }
+    getProfile();
+  }, [user?.id, navigate]);
+
   const { data: { data: agentsData } = {} } = useAgents();
 
   const form = useForm<WelcomeFormValues>({
@@ -69,13 +87,15 @@ export function WelcomeForm() {
           try {
             const userLevel = await createOrUpdateUserLevel(user.id);
             console.log('User level created/updated:', userLevel);
-            
+
             // Success toast for complete process
             toast({
               title: "Profile created successfully",
               description: "Your profile has been saved and you're now at level 1!",
               duration: 3000,
             });
+
+            navigate(`/chat/${agentsData?.agents[0].id}`);
           } catch (levelError: any) {
             console.error('Error creating user level:', levelError);
             // Still show success for profile even if level creation fails
@@ -85,7 +105,7 @@ export function WelcomeForm() {
               duration: 3000,
             });
           }
-          
+
           // 4. Save to local context
           submitForm(values);
 
@@ -270,7 +290,7 @@ export function WelcomeForm() {
             <TabsList className="mx-6 mb-2">
               <TabsTrigger value="form" disabled={activeTab === "nft"}>Project Info</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="form">
               <form onSubmit={form.handleSubmit(handleSubmit)}>
                 <CardContent>{renderFormFields()}</CardContent>
@@ -307,7 +327,7 @@ export function WelcomeForm() {
                 </CardFooter>
               </form>
             </TabsContent>
-            
+
           </Tabs>
         </Card>
       )}

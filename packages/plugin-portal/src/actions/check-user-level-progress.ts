@@ -19,7 +19,7 @@ export const checkUserLevelProgressAction: Action = {
 
   validate: async (runtime: IAgentRuntime, message: Memory, state: State): Promise<boolean> => {
     // Check if we have a user ID in the message or state
-    const userId = message.content.userId || message.content.user_id || state.values?.userId;
+    const userId = message.content.userId || message.content.user_id || state?.data?.userId;
 
     if (!userId) {
       logger.warn(
@@ -48,7 +48,7 @@ export const checkUserLevelProgressAction: Action = {
       logger.info('[CHECK_USER_LEVEL_PROGRESS] Handling CHECK_USER_LEVEL_PROGRESS action');
 
       // Get the user ID from the message or state
-      const userId = message.content.userId || message.content.user_id || state.values?.userId;
+      const userId = message.content.userId || message.content.user_id || state?.data?.userId;
 
       if (!userId || typeof userId !== 'string') {
         logger.error(`[CHECK_USER_LEVEL_PROGRESS] Invalid user ID: ${userId}`);
