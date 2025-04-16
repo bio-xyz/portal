@@ -21,7 +21,6 @@ export const character: Character = {
     '@elizaos/plugin-sql',
     ...(process.env.OPENAI_API_KEY ? ['@elizaos/plugin-openai'] : []),
     ...(process.env.ANTHROPIC_API_KEY ? ['@elizaos/plugin-anthropic'] : []),
-
     //...(process.env.DISCORD_API_TOKEN ? ['@elizaos/plugin-discord'] : []),
     ...(process.env.TWITTER_USERNAME ? ['@elizaos/plugin-twitter'] : []),
     ...(process.env.TELEGRAM_BOT_TOKEN ? ['@elizaos/plugin-telegram'] : []),
@@ -29,37 +28,13 @@ export const character: Character = {
     ...(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
       ? ['@elizaos/plugin-portal']
       : []),
-    ...(process.env.USE_OLLAMA_TEXT_MODELS ? ['@elizaos/plugin-ollama'] : []),
+
   ],
+  settings: {
+    ragKnowledge: true,
+  },
   secrets: {
-    /**
-     * USE_OLLAMA_TEXT_MODELS=true
-
-# Ollama Configuration
-OLLAMA_API_ENDPOINT=http://localhost:11434
-OLLAMA_MODEL=llama3.2
-USE_OLLAMA_EMBEDDING=true
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-     * 
-     */
-
-    ...(process.env.USE_LOCAL_AI ? { USE_LOCAL_AI: process.env.USE_LOCAL_AI } : {}),
-    ...(process.env.USE_STUDIOLM_TEXT_MODELS
-      ? { USE_STUDIOLM_TEXT_MODELS: process.env.USE_STUDIOLM_TEXT_MODELS }
-      : {}),
-    ...(process.env.USE_OLLAMA_TEXT_MODELS
-      ? { USE_OLLAMA_TEXT_MODELS: process.env.USE_OLLAMA_TEXT_MODELS }
-      : {}),
-    ...(process.env.OLLAMA_API_ENDPOINT
-      ? { OLLAMA_API_ENDPOINT: process.env.OLLAMA_API_ENDPOINT }
-      : {}),
-    ...(process.env.OLLAMA_MODEL ? { OLLAMA_MODEL: process.env.OLLAMA_MODEL } : {}),
-    ...(process.env.USE_OLLAMA_EMBEDDING
-      ? { USE_OLLAMA_EMBEDDING: process.env.USE_OLLAMA_EMBEDDING }
-      : {}),
-    ...(process.env.OLLAMA_EMBEDDING_MODEL
-      ? { OLLAMA_EMBEDDING_MODEL: process.env.OLLAMA_EMBEDDING_MODEL }
-      : {}),
+    ...(process.env.OPENAI_API_KEY ? { OPENAI_API_KEY: process.env.OPENAI_API_KEY } : {}),
     ...(process.env.VITE_SUPABASE_URL ? { VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL } : {}),
     ...(process.env.VITE_SUPABASE_ANON_KEY
       ? { VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY }

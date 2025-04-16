@@ -19,6 +19,7 @@
     "db:setup": "bun run scripts/setup-db.ts",
     "db:prepare": "bun run scripts/prepare-sql.ts",
     "deploy": "bun run scripts/deploy.ts",
+    "test:db": "bun run scripts/setup-db-test.ts",
     "test:jwt": "bun run scripts/test-client-jwt.ts",
     "test:jwt:simple": "bun run scripts/test-simple-jwt.ts",
     "reset:jwt": "bun run scripts/reset-jwt.ts"

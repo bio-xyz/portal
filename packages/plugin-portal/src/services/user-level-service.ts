@@ -108,26 +108,27 @@ export class UserLevelService extends Service {
         return null;
       }
 
-      // Call the Supabase RPC function to get the user level
-      const { data, error } = await supabaseService.rpc('get_user_level', { p_privy_id: userId });
-
-      if (error) {
-        logger.error(`[UserLevelService] Error getting user level: ${error.message}`);
-        return null;
-      }
-
-      if (!data) {
+      // Use the getUserLevel method from SupabaseService
+      const userLevel = await supabaseService.getUserLevel(userId);
+      if (!userLevel) {
         logger.info(`[UserLevelService] No level found for user ${userId}`);
         return null;
       }
 
+      // Simplified logging to avoid potential serialization issues
+      logger.info({
+        message: `[UserLevelService] Raw userLevel object received for user ${userId}`,
+        userLevelData: userLevel, // Log the raw object separately
+      });
+      logger.info(`[UserLevelService] Extracted level ${userLevel.level} (type: ${typeof userLevel.level}) for user ${userId}`);
+
       // Cache the user level
-      this.userLevelCache.set(userId, data as UserLevel);
+      this.userLevelCache.set(userId, userLevel);
 
       logger.info(
-        `[UserLevelService] Successfully retrieved level ${data.level} for user ${userId}`
+        `[UserLevelService] Successfully retrieved and cached level ${userLevel.level} for user ${userId}`
       );
-      return data as UserLevel;
+      return userLevel;
     } catch (error) {
       logger.error(`[UserLevelService] Error getting user level for ${userId}:`, error);
       return null;
@@ -141,6 +142,16 @@ export class UserLevelService extends Service {
    */
   async getLevelRequirements(level: number): Promise<LevelRequirements[]> {
     try {
+      // Add detailed logging to see the exact structure of the level parameter
+      logger.info(`[UserLevelService] getLevelRequirements called with level:`, {
+        level,
+        type: typeof level,
+        isObject: level !== null && typeof level === 'object',
+        stringified: JSON.stringify(level),
+        toString: level.toString(),
+        valueOf: level.valueOf()
+      });
+
       logger.info(`[UserLevelService] Getting requirements for level ${level}`);
 
       // Get the Supabase service
@@ -150,10 +161,8 @@ export class UserLevelService extends Service {
         return [];
       }
 
-      // Call the Supabase RPC function to get the level requirements
-      const { data, error } = await supabaseService.rpc('get_level_requirements', {
-        p_level: level,
-      });
+      // Use the getLevelRequirements method from SupabaseService
+      const { data, error } = await supabaseService.getLevelRequirements(level);
 
       if (error) {
         logger.error(`[UserLevelService] Error getting level requirements: ${error.message}`);
@@ -192,7 +201,17 @@ export class UserLevelService extends Service {
    */
   async checkRequirements(userId: string, level: number): Promise<RequirementCompletion[]> {
     try {
-      logger.info(`[UserLevelService] Checking requirements for user ${userId} at level ${level}`);
+      // Simplified logging to avoid potential serialization issues
+      logger.info(`[UserLevelService] checkRequirements called for user ${userId} with level argument: ${level} (type: ${typeof level})`);
+
+      // Ensure level is treated as a number internally, even if passed incorrectly
+      const numericLevel = Number(level);
+      if (isNaN(numericLevel)) {
+        logger.error(`[UserLevelService] Invalid level provided to checkRequirements for user ${userId}: ${level}`);
+        return [];
+      }
+
+      logger.info(`[UserLevelService] Checking requirements for user ${userId} at numeric level ${numericLevel}`);
 
       // Get the Supabase service
       const supabaseService = this.runtime.getService('supabase') as SupabaseService;
@@ -201,38 +220,18 @@ export class UserLevelService extends Service {
         return [];
       }
 
-      // Call the Supabase RPC function to check requirements completion
-      const { data, error } = await supabaseService.rpc('check_requirements_completion', {
-        p_privy_id: userId,
-        p_level: level,
-      });
-
-      if (error) {
-        logger.error(`[UserLevelService] Error checking requirements completion: ${error.message}`);
-        return [];
-      }
-
-      if (!data) {
-        logger.info(
-          `[UserLevelService] No requirement completions found for user ${userId} at level ${level}`
-        );
-        return [];
-      }
-
-      // Convert completed_at strings to Date objects where they exist
-      const completions = data.map((completion) => ({
-        ...completion,
-        completed_at: completion.completed_at ? new Date(completion.completed_at) : undefined,
-      }));
+      // Use the checkRequirementsCompletion method from SupabaseService instead of RPC
+      // Pass the validated numericLevel
+      const completions = await supabaseService.checkRequirementsCompletion(userId, numericLevel);
 
       logger.info(
-        `[UserLevelService] User ${userId} has ${completions.length} completed requirements for level ${level}`
+        `[UserLevelService] User ${userId} has ${completions.length} requirements completion entries for level ${numericLevel}`
       );
       return completions;
     } catch (error) {
       logger.error(
         `[UserLevelService] Error checking requirements for user ${userId} at level ${level}:`,
-        error
+        error // Log the original level value in case of error
       );
       return [];
     }
@@ -340,6 +339,19 @@ export class UserLevelService extends Service {
       }
 
       const nextLevel = currentLevel.level + 1;
+
+      // Add detailed logging to see the exact structure of the nextLevel variable
+      logger.info(`[UserLevelService] nextLevel in getUserLevelProgress:`, {
+        nextLevel,
+        type: typeof nextLevel,
+        isObject: nextLevel !== null && typeof nextLevel === 'object',
+        stringified: JSON.stringify(nextLevel),
+        toString: nextLevel.toString(),
+        valueOf: nextLevel.valueOf(),
+        currentLevel: currentLevel.level,
+        currentLevelType: typeof currentLevel.level
+      });
+
       logger.info(
         `[UserLevelService] User ${userId} is at level ${currentLevel.level}, getting requirements for level ${nextLevel}`
       );
@@ -363,19 +375,8 @@ export class UserLevelService extends Service {
         return null;
       }
 
-      // Get user metrics from Supabase
-      const { data: userMetrics, error: metricsError } = await supabaseService.rpc(
-        'get_user_metrics',
-        {
-          p_privy_id: userId,
-        }
-      );
-
-      if (metricsError) {
-        logger.error(`[UserLevelService] Error getting user metrics: ${metricsError.message}`);
-        return null;
-      }
-
+      // Get user metrics from Supabase using the getUserMetrics method
+      const userMetrics = await supabaseService.getUserMetrics(userId);
       if (!userMetrics) {
         logger.info(`[UserLevelService] No metrics found for user ${userId}`);
         return {
@@ -559,6 +560,19 @@ export class UserLevelService extends Service {
       }
 
       const nextLevel = currentLevel.level + 1;
+
+      // Add detailed logging to see the exact structure of the nextLevel variable
+      logger.info(`[UserLevelService] nextLevel in checkAndUpdateUserLevel:`, {
+        nextLevel,
+        type: typeof nextLevel,
+        isObject: nextLevel !== null && typeof nextLevel === 'object',
+        stringified: JSON.stringify(nextLevel),
+        toString: nextLevel.toString(),
+        valueOf: nextLevel.valueOf(),
+        currentLevel: currentLevel.level,
+        currentLevelType: typeof currentLevel.level
+      });
+
       logger.info(
         `[UserLevelService] User ${userId} is at level ${currentLevel.level}, checking requirements for level ${nextLevel}`
       );

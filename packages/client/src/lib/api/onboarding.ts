@@ -1,4 +1,4 @@
-import { getSupabase } from '../supabase-client';
+import { getSupabase, supabaseAdmin } from '../supabase-client';
 import { Profile } from '../../types/database.types';
 
 /**
@@ -14,9 +14,12 @@ export async function getOnboardingProfile(privyId: string): Promise<Profile> {
   }
 
   try {
-    // Always get the latest client with JWT token
-    const supabase = getSupabase();
-    const { data, error } = await supabase.rpc(
+    // Use the admin client to bypass RLS
+    if (!supabaseAdmin) {
+      throw new Error('Admin client not available. Check your environment variables.');
+    }
+
+    const { data, error } = await supabaseAdmin.rpc(
       'get_full_profile',
       { p_privy_id: privyId }
     );
