@@ -36,10 +36,13 @@ import type { Hex } from 'viem';
 import { useUserLevel } from '@/hooks/use-user-level';
 
 const LEVELS = {
-  1: { label: "App Started", requirements: ["Wallet connected"] },
-  2: { label: "Science NFTs Minted", requirements: ["Minted Idea NFT", "Minted Hypothesis NFT"] },
-  3: { label: "Community Initiated", requirements: ["Discord created", "4 Discord members"] },
-  4: { label: "Community Growth + Proof", requirements: ["10 Discord members", "25 papers shared", "100 messages sent"] },
+  1: { label: 'App Started', requirements: ['Wallet connected'] },
+  2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Hypothesis NFT'] },
+  3: { label: 'Community Initiated', requirements: ['Discord created', '4 Discord members'] },
+  4: {
+    label: 'Community Growth + Proof',
+    requirements: ['10 Discord members', '25 papers shared', '100 messages sent'],
+  },
 };
 
 interface IAttachment {
@@ -184,7 +187,7 @@ export function CoreAgentChat({
   const { user } = useAuth();
   const { wallets } = useWallets();
   const { toast } = useToast();
-  const { level, isLoading: levelLoading } = useUserLevel();
+  const { level, isLoading: levelLoading, refetchLevel } = useUserLevel();
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -215,15 +218,17 @@ export function CoreAgentChat({
 
   useEffect(() => {
     if (messages.length !== prevMessageCountRef.current) {
-      clientLogger.info(`[CoreAgentChat][${scrollRefId}] Messages updated, scrolling to bottom`);
-      safeScrollToBottom();
+      if (isAtBottom) {
+        clientLogger.info(`[CoreAgentChat][${scrollRefId}] User is at bottom, scrolling down.`);
+        safeScrollToBottom();
+      } else {
+        clientLogger.info(
+          `[CoreAgentChat][${scrollRefId}] User scrolled up, maintaining position.`
+        );
+      }
       prevMessageCountRef.current = messages.length;
     }
-  }, [messages.length, safeScrollToBottom, scrollRefId]);
-
-  useEffect(() => {
-    safeScrollToBottom();
-  }, [safeScrollToBottom]);
+  }, [messages.length, safeScrollToBottom, scrollRefId, isAtBottom]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -231,59 +236,91 @@ export function CoreAgentChat({
     }
   }, []);
 
-  const addAgentMessage = useCallback((text: string) => {
-    const agentMessage: ContentWithUser = {
-      id: uuidv4(),
-      text: text,
-      name: agentData?.name || 'Agent',
-      senderId: agentId,
-      senderName: agentData?.name || 'Agent',
-      roomId: roomId,
-      createdAt: Date.now(),
-      isLoading: false,
-      source: CHAT_SOURCE,
-      userId: userId,
-    };
+  const addAgentMessage = useCallback(
+    (text: string) => {
+      const agentMessage: ContentWithUser = {
+        id: uuidv4(),
+        text: text,
+        name: agentData?.name || 'Agent',
+        senderId: agentId,
+        senderName: agentData?.name || 'Agent',
+        roomId: roomId,
+        createdAt: Date.now(),
+        isLoading: false,
+        source: CHAT_SOURCE,
+        userId: userId,
+      };
 
-    clientLogger.info('[CoreAgentChat] Adding agent message to UI:', agentMessage);
+      clientLogger.info('[CoreAgentChat] Adding agent message to UI:', agentMessage);
 
-    queryClient.setQueryData(
-      ['messages', agentId, roomId, worldId],
-      (old: ContentWithUser[] = []) => {
-        if (old.some(msg => msg.id === agentMessage.id)) return old;
-        animatedMessageIdRef.current = agentMessage.id as string;
-        return [...old, agentMessage];
-      }
-    );
-  }, [agentId, agentData?.name, roomId, userId, queryClient, worldId]);
+      queryClient.setQueryData(
+        ['messages', agentId, roomId, worldId],
+        (old: ContentWithUser[] = []) => {
+          if (old.some((msg) => msg.id === agentMessage.id)) return old;
+          animatedMessageIdRef.current = agentMessage.id as string;
+          return [...old, agentMessage];
+        }
+      );
+    },
+    [agentId, agentData?.name, roomId, userId, queryClient, worldId]
+  );
 
   const triggerMintingProcess = useCallback(async () => {
+    console.log('[triggerMintingProcess] Starting minting process...', level);
+    if (level !== 1) {
+      console.warn(
+        `[triggerMintingProcess] Aborting mint attempt because user level is ${level}, not 1.`
+      );
+      return;
+    }
+
     if (isMinting) {
       console.warn('[triggerMintingProcess] Minting already in progress.');
       return;
     }
 
-    const embeddedWallet = wallets.find((wallet: ConnectedWallet) => wallet.walletClientType === 'privy');
+    const embeddedWallet = wallets.find(
+      (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
+    );
 
     if (!embeddedWallet) {
-      const errorMsg = 'Your embedded wallet could not be found. Please try logging out and back in.';
+      const errorMsg =
+        'Your embedded wallet could not be found. Please try logging out and back in.';
       toast({ title: 'Wallet Not Found', description: errorMsg, variant: 'destructive' });
       addAgentMessage(`Minting failed: ${errorMsg}`);
-      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_failure', error: 'Embedded wallet not found' }), roomId, CHAT_SOURCE, { userId });
+      socketIOManager.sendMessage(
+        JSON.stringify({ type: 'user_mint_failure', error: 'Embedded wallet not found' }),
+        roomId,
+        CHAT_SOURCE,
+        { userId }
+      );
       return;
     }
 
     const expectedChainId = `eip155:${baseSepolia.id}`;
     if (embeddedWallet.chainId !== expectedChainId) {
       const errorMsg = `Please ensure your wallet is connected to Base Sepolia (Expected: ${expectedChainId}, Found: ${embeddedWallet.chainId}). You may need to switch it via the wallet UI or reconnect.`;
-      toast({ title: 'Incorrect Network', description: errorMsg, variant: 'destructive', duration: 7000 });
+      toast({
+        title: 'Incorrect Network',
+        description: errorMsg,
+        variant: 'destructive',
+        duration: 7000,
+      });
       addAgentMessage(`Minting failed: ${errorMsg}`);
-      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_failure', error: `Wallet on wrong chain: ${embeddedWallet.chainId}` }), roomId, CHAT_SOURCE, { userId });
+      socketIOManager.sendMessage(
+        JSON.stringify({
+          type: 'user_mint_failure',
+          error: `Wallet on wrong chain: ${embeddedWallet.chainId}`,
+        }),
+        roomId,
+        CHAT_SOURCE,
+        { userId }
+      );
       return;
     }
 
     setIsMinting(true);
-    addAgentMessage("Minting your Idea and Vision NFTs now...");
+    addAgentMessage('Minting your Idea and Vision NFTs now...');
 
     try {
       console.log('[triggerMintingProcess] Calling mintIdeaAndVisionNFTs...');
@@ -292,28 +329,59 @@ export function CoreAgentChat({
 
       toast({ title: 'NFTs Minted Successfully!', variant: 'default', duration: 5000 });
 
-      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_success', data: { ideaNftHash, visionNftHash } }), roomId, CHAT_SOURCE, { userId });
+      socketIOManager.sendMessage(
+        JSON.stringify({ type: 'user_mint_success', data: { ideaNftHash, visionNftHash } }),
+        roomId,
+        CHAT_SOURCE,
+        { userId }
+      );
 
       const nextLevelInfo = LEVELS[3];
       const requirementsText = nextLevelInfo.requirements.join(', ');
       addAgentMessage(`NFTs minted successfully! You are now Level 2: ${LEVELS[2].label}.
 Next step (Level 3): ${nextLevelInfo.label}.
 Requirements: ${requirementsText}.`);
+
+      refetchLevel();
     } catch (error: any) {
       const errorMsg = error.message || 'An unknown error occurred during minting.';
       console.error('[triggerMintingProcess] Minting failed:', error);
-      toast({ title: 'NFT Minting Failed', description: errorMsg, variant: 'destructive', duration: 7000 });
+      toast({
+        title: 'NFT Minting Failed',
+        description: errorMsg,
+        variant: 'destructive',
+        duration: 7000,
+      });
 
-      socketIOManager.sendMessage(JSON.stringify({ type: 'user_mint_failure', error: errorMsg }), roomId, CHAT_SOURCE, { userId });
+      socketIOManager.sendMessage(
+        JSON.stringify({ type: 'user_mint_failure', error: errorMsg }),
+        roomId,
+        CHAT_SOURCE,
+        { userId }
+      );
 
-      addAgentMessage(`There was an issue minting your NFTs: ${errorMsg} Please try again later or contact support.`);
+      addAgentMessage(
+        `There was an issue minting your NFTs: ${errorMsg} Please try again later or contact support.`
+      );
     } finally {
       setIsMinting(false);
     }
-  }, [isMinting, wallets, toast, socketIOManager, roomId, userId, addAgentMessage]);
+  }, [
+    level,
+    isMinting,
+    wallets,
+    toast,
+    socketIOManager,
+    roomId,
+    userId,
+    addAgentMessage,
+    refetchLevel,
+  ]);
 
   useEffect(() => {
-    const embeddedWallet = wallets.find((wallet: ConnectedWallet) => wallet.walletClientType === 'privy');
+    const embeddedWallet = wallets.find(
+      (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
+    );
 
     if (!levelLoading && level === 1 && !isMinting && !mintingAttempted && embeddedWallet) {
       console.log('[CoreAgentChat] Conditions met for automatic minting (Level 1 detected).');
@@ -398,8 +466,12 @@ Requirements: ${requirementsText}.`);
     };
 
     clientLogger.info('[CoreAgentChat] Adding message listeners');
-    const msgHandler = socketIOManager.evtMessageBroadcast.attach((data) => [data as unknown as ContentWithUser]);
-    const completeHandler = socketIOManager.evtMessageComplete.attach((data) => [data as unknown as any]);
+    const msgHandler = socketIOManager.evtMessageBroadcast.attach((data) => [
+      data as unknown as ContentWithUser,
+    ]);
+    const completeHandler = socketIOManager.evtMessageComplete.attach((data) => [
+      data as unknown as any,
+    ]);
 
     msgHandler.attach(handleMessageBroadcasting);
     completeHandler.attach(handleMessageComplete);
@@ -410,7 +482,17 @@ Requirements: ${requirementsText}.`);
       msgHandler.detach();
       completeHandler.detach();
     };
-  }, [roomId, agentId, entityId, queryClient, socketIOManager, worldId, userId, initialMessage, messages.length]);
+  }, [
+    roomId,
+    agentId,
+    entityId,
+    queryClient,
+    socketIOManager,
+    worldId,
+    userId,
+    initialMessage,
+    messages.length,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

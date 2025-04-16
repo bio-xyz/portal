@@ -11,7 +11,6 @@ import express from 'express';
 import { Server as SocketIOServer } from 'socket.io';
 import { createApiRouter, setupSocketIO } from './api';
 import http from 'node:http';
-import discordRouter from './api/discord';
 // Load environment variables
 dotenv.config();
 
