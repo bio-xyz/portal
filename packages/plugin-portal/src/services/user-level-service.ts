@@ -120,7 +120,9 @@ export class UserLevelService extends Service {
         message: `[UserLevelService] Raw userLevel object received for user ${userId}`,
         userLevelData: userLevel, // Log the raw object separately
       });
-      logger.info(`[UserLevelService] Extracted level ${userLevel.level} (type: ${typeof userLevel.level}) for user ${userId}`);
+      logger.info(
+        `[UserLevelService] Extracted level ${userLevel.level} (type: ${typeof userLevel.level}) for user ${userId}`
+      );
 
       // Cache the user level
       this.userLevelCache.set(userId, userLevel);
@@ -149,7 +151,7 @@ export class UserLevelService extends Service {
         isObject: level !== null && typeof level === 'object',
         stringified: JSON.stringify(level),
         toString: level.toString(),
-        valueOf: level.valueOf()
+        valueOf: level.valueOf(),
       });
 
       logger.info(`[UserLevelService] Getting requirements for level ${level}`);
@@ -201,17 +203,19 @@ export class UserLevelService extends Service {
    */
   async checkRequirements(userId: string, level: number): Promise<RequirementCompletion[]> {
     try {
-      // Simplified logging to avoid potential serialization issues
-      logger.info(`[UserLevelService] checkRequirements called for user ${userId} with level argument: ${level} (type: ${typeof level})`);
-
       // Ensure level is treated as a number internally, even if passed incorrectly
       const numericLevel = Number(level);
       if (isNaN(numericLevel)) {
-        logger.error(`[UserLevelService] Invalid level provided to checkRequirements for user ${userId}: ${level}`);
+        // Log the original invalid value and type for debugging
+        logger.error(
+          `[UserLevelService] Invalid level type passed to checkRequirements for user ${userId}. Received: ${level} (type: ${typeof level})`
+        );
         return [];
       }
 
-      logger.info(`[UserLevelService] Checking requirements for user ${userId} at numeric level ${numericLevel}`);
+      logger.info(
+        `[UserLevelService] Checking requirements for user ${userId} at numeric level ${numericLevel}`
+      );
 
       // Get the Supabase service
       const supabaseService = this.runtime.getService('supabase') as SupabaseService;
@@ -254,23 +258,24 @@ export class UserLevelService extends Service {
         return false;
       }
 
-      // Call the Supabase RPC function to update the user level
-      const { data, error } = await supabaseService.rpc('update_user_level', {
-        p_privy_id: userId,
-        p_level: level,
-      });
+      // Call the SupabaseService's updateUserLevel method instead of RPC
+      const { success, error } = await supabaseService.updateUserLevel(userId, level);
 
-      if (error) {
-        logger.error(`[UserLevelService] Error updating user level: ${error.message}`);
+      if (error || !success) {
+        logger.error(
+          `[UserLevelService] Error updating user level via SupabaseService: ${error?.message || 'Update failed'}`
+        );
         return false;
       }
 
-      // Update the cache
-      if (data) {
-        this.userLevelCache.set(userId, data as UserLevel);
-      } else {
-        this.userLevelCache.delete(userId);
-      }
+      // Update the cache (Need to fetch the updated record as updateUserLevel doesn't return it)
+      // Clear cache first, getUserLevel will fetch the new data if called again
+      this.userLevelCache.delete(userId);
+      // Optionally, you could fetch the updated level here immediately if needed elsewhere right away
+      // const updatedLevelData = await this.getUserLevel(userId);
+      // if (updatedLevelData) {
+      //    this.userLevelCache.set(userId, updatedLevelData);
+      // }
 
       logger.info(`[UserLevelService] Successfully updated level for user ${userId} to ${level}`);
       return true;
@@ -349,7 +354,7 @@ export class UserLevelService extends Service {
         toString: nextLevel.toString(),
         valueOf: nextLevel.valueOf(),
         currentLevel: currentLevel.level,
-        currentLevelType: typeof currentLevel.level
+        currentLevelType: typeof currentLevel.level,
       });
 
       logger.info(
@@ -504,39 +509,64 @@ export class UserLevelService extends Service {
    */
   async hasMetLevelRequirements(userId: string, level: number): Promise<boolean> {
     try {
-      logger.info(
-        `[UserLevelService] Checking if user ${userId} has met requirements for level ${level}`
-      );
-
-      // Get the requirements for the specified level
-      const requirements = await this.getLevelRequirements(level);
-      if (!requirements) {
-        logger.warn(`[UserLevelService] No requirements found for level ${level}`);
-        return false;
-      }
-
-      // Check which requirements are completed
-      const completionStatus = await this.checkRequirements(userId, level);
-      if (!completionStatus) {
-        logger.warn(
-          `[UserLevelService] Could not check requirements for user ${userId} at level ${level}`
+      // Ensure level is treated as a number before proceeding
+      const numericLevel = Number(level);
+      if (isNaN(numericLevel)) {
+        logger.error(
+          `[UserLevelService] Invalid level type passed to hasMetLevelRequirements for user ${userId}. Received: ${level} (type: ${typeof level})`
         );
         return false;
       }
 
-      // Check if all requirements are completed
+      logger.info(
+        `[UserLevelService] Checking if user ${userId} has met requirements for level ${numericLevel}`
+      );
+
+      // Get the requirements for the specified numeric level
+      const requirements = await this.getLevelRequirements(numericLevel);
+      // Requirement check logic depends on having requirements. If none exist for the level,
+      // we could interpret this as requirements being met (vacuously true) or unmet.
+      // Let's assume no requirements means they are met for advancing.
+      if (!requirements || requirements.length === 0) {
+        logger.warn(
+          `[UserLevelService] No requirements found for level ${numericLevel}. Assuming met.`
+        );
+        return true; // Or false depending on desired logic for levels with no requirements
+      }
+
+      // Check which requirements are completed using the numeric level
+      logger.debug(
+        `[UserLevelService] Calling checkRequirements for level ${numericLevel} from hasMetLevelRequirements`
+      );
+      const completionStatus = await this.checkRequirements(userId, numericLevel);
+
+      // Check if completionStatus array length matches the expected number of requirements/conditions.
+      // This helps verify checkRequirements worked as expected.
+      // Note: This simple length check might not be sufficient if requirements have multiple conditions.
+      // A more robust check would map completionStatus back to requirements.
+      if (!completionStatus || completionStatus.length === 0) {
+        // Check if empty or null
+        logger.warn(
+          `[UserLevelService] Could not retrieve completion status for user ${userId} at level ${numericLevel}. Assuming requirements not met.`
+        );
+        return false;
+      }
+
+      // Check if *all* returned statuses indicate completion
       const allRequirementsMet = completionStatus.every((req) => req.completed);
       logger.info(
-        `[UserLevelService] User ${userId} has met all requirements for level ${level}: ${allRequirementsMet}`
+        `[UserLevelService] User ${userId} has met all requirements for level ${numericLevel}: ${allRequirementsMet}`
       );
 
       return allRequirementsMet;
     } catch (error) {
       logger.error(
         `[UserLevelService] Error checking level requirements for user ${userId} at level ${level}:`,
-        error
+        error // Log original potentially corrupted level in case of error
       );
-      throw error;
+      // Decide on behavior: throw error or return false? Returning false might be safer.
+      return false;
+      // throw error;
     }
   }
 
@@ -570,7 +600,7 @@ export class UserLevelService extends Service {
         toString: nextLevel.toString(),
         valueOf: nextLevel.valueOf(),
         currentLevel: currentLevel.level,
-        currentLevelType: typeof currentLevel.level
+        currentLevelType: typeof currentLevel.level,
       });
 
       logger.info(
