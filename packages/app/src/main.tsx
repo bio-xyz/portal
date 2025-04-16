@@ -13,7 +13,7 @@ function ElizaWrapper() {
   // Function to check if server is accessible
   const checkServerAccessibility = async () => {
     try {
-      await fetch('https://portal-app-ivory.vercel.app', {
+      await fetch('http://localhost:3000', {
         method: 'HEAD',
         mode: 'no-cors', // Just checking if we can connect, not actually getting a response
       });
@@ -64,7 +64,7 @@ function ElizaWrapper() {
     return (
       <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0 }}>
         <iframe
-          src="https://portal-app-ivory.vercel.app"
+          src="http://localhost:3000"
           title="Eliza Client"
           style={{
             width: '100%',
